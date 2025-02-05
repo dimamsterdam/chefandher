@@ -7,6 +7,7 @@ import { useAuthStore } from './authStore';
 interface Recipe {
   id?: string;
   course_id: string;
+  created_by?: string;
   title: string;
   ingredients: string[];
   instructions: string[];
@@ -63,10 +64,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   reorderCourses: (courses) => set({ courses }),
   generateRecipe: async (courseId: string, requirements?: string) => {
     const { courses, guestCount } = get();
+    const { user } = useAuthStore.getState();
     const course = courses.find((c) => c.id === courseId);
     
     if (!course) {
       toast.error('Course not found');
+      return;
+    }
+
+    if (!user) {
+      toast.error('You must be logged in to generate recipes');
       return;
     }
 
@@ -83,6 +90,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       const recipe: Recipe = {
         course_id: courseId,
+        created_by: user.id,
         ...response.data,
       };
 
@@ -102,6 +110,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       toast.success('Recipe generated successfully!');
     } catch (error: any) {
+      console.error('Recipe generation error:', error);
       toast.error(error.message);
     }
   },
@@ -150,6 +159,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         prepDays: 1,
       });
     } catch (error: any) {
+      console.error('Menu save error:', error);
       toast.error(error.message);
     }
   },

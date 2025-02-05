@@ -111,6 +111,7 @@ export type Database = {
           cook_time_minutes: number
           course_id: string | null
           created_at: string
+          created_by: string | null
           id: string
           ingredients: string[]
           instructions: string[]
@@ -123,6 +124,7 @@ export type Database = {
           cook_time_minutes?: number
           course_id?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           ingredients: string[]
           instructions: string[]
@@ -135,6 +137,7 @@ export type Database = {
           cook_time_minutes?: number
           course_id?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           ingredients?: string[]
           instructions?: string[]
