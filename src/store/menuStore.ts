@@ -1,4 +1,7 @@
+
 import { create } from 'zustand';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Course {
   id: string;
@@ -18,9 +21,10 @@ interface MenuState {
   removeCourse: (id: string) => void;
   updateCourse: (id: string, updates: Partial<Course>) => void;
   reorderCourses: (courses: Course[]) => void;
+  saveMenu: () => Promise<void>;
 }
 
-export const useMenuStore = create<MenuState>((set) => ({
+export const useMenuStore = create<MenuState>((set, get) => ({
   name: '',
   courses: [],
   guestCount: 1,
@@ -43,4 +47,47 @@ export const useMenuStore = create<MenuState>((set) => ({
       ),
     })),
   reorderCourses: (courses) => set({ courses }),
+  saveMenu: async () => {
+    const { name, guestCount, prepDays, courses } = get();
+    
+    try {
+      // First, create the menu
+      const { data: menu, error: menuError } = await supabase
+        .from('menus')
+        .insert({
+          name,
+          guest_count: guestCount,
+          prep_days: prepDays,
+        })
+        .select()
+        .single();
+
+      if (menuError) throw menuError;
+
+      // Then, create all courses
+      const { error: coursesError } = await supabase
+        .from('courses')
+        .insert(
+          courses.map((course) => ({
+            menu_id: menu.id,
+            title: course.title,
+            order: course.order,
+          }))
+        );
+
+      if (coursesError) throw coursesError;
+
+      toast.success('Menu saved successfully!');
+      
+      // Reset the form
+      set({
+        name: '',
+        courses: [],
+        guestCount: 1,
+        prepDays: 1,
+      });
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  },
 }));
