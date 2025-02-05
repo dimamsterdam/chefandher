@@ -1,11 +1,17 @@
 
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Save, Trash2, GripVertical } from "lucide-react";
+import { Plus, Minus, Save, Trash2, GripVertical, ChefHat, RefreshCw, Loader2 } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const Index = () => {
   const { 
@@ -19,10 +25,12 @@ const Index = () => {
     addCourse, 
     removeCourse,
     reorderCourses,
-    saveMenu 
+    saveMenu,
+    generateRecipe 
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -35,6 +43,15 @@ const Index = () => {
     });
     setNewCourseTitle("");
     toast.success("Course added successfully");
+  };
+
+  const handleGenerateRecipe = async (courseId: string) => {
+    setGeneratingFor(courseId);
+    try {
+      await generateRecipe(courseId);
+    } finally {
+      setGeneratingFor(null);
+    }
   };
 
   const handleSave = async () => {
@@ -132,18 +149,77 @@ const Index = () => {
                 <Reorder.Item
                   key={course.id}
                   value={course}
-                  className="flex items-center space-x-4 p-4 glass rounded-lg cursor-move bg-white"
+                  className="flex flex-col p-4 glass rounded-lg cursor-move bg-white"
                 >
-                  <GripVertical className="h-5 w-5 text-gray-400" />
-                  <span className="flex-grow">{course.title}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeCourse(course.id)}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center space-x-4">
+                    <GripVertical className="h-5 w-5 text-gray-400" />
+                    <span className="flex-grow">{course.title}</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleGenerateRecipe(course.id);
+                        }}
+                        disabled={generatingFor === course.id}
+                      >
+                        {generatingFor === course.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : course.recipe ? (
+                          <RefreshCw className="h-4 w-4" />
+                        ) : (
+                          <ChefHat className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCourse(course.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {course.recipe && (
+                    <Accordion type="single" collapsible className="w-full mt-4">
+                      <AccordionItem value="recipe">
+                        <AccordionTrigger>View Recipe</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 pt-2">
+                            <div>
+                              <h4 className="font-medium mb-2">Ingredients:</h4>
+                              <ul className="list-disc pl-5 space-y-1">
+                                {course.recipe.ingredients.map((ingredient, idx) => (
+                                  <li key={idx}>{ingredient}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div>
+                              <h4 className="font-medium mb-2">Instructions:</h4>
+                              <ol className="list-decimal pl-5 space-y-2">
+                                {course.recipe.instructions.map((instruction, idx) => (
+                                  <li key={idx}>{instruction}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                              <div>
+                                <span className="font-medium">Prep Time:</span>{" "}
+                                {course.recipe.prep_time_minutes} minutes
+                              </div>
+                              <div>
+                                <span className="font-medium">Cook Time:</span>{" "}
+                                {course.recipe.cook_time_minutes} minutes
+                              </div>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
                 </Reorder.Item>
               ))}
             </Reorder.Group>
