@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
+const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -32,23 +32,32 @@ serve(async (req) => {
       "servings": number
     }`
 
-    const response = await fetch(DEEPSEEK_API_URL, {
+    const response = await fetch(PERPLEXITY_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('DEEPSEEK_API_KEY')}`,
+        'Authorization': `Bearer ${Deno.env.get('PERPLEXITY_API_KEY')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'llama-3.1-sonar-small-128k-online',
         messages: [
           { role: 'system', content: 'You are a professional chef specializing in recipe creation. Provide detailed, precise recipes with accurate measurements and clear instructions.' },
           { role: 'user', content: prompt }
         ],
-        response_format: { type: 'json_object' }
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 1000,
+        return_images: false,
+        return_related_questions: false
       }),
     })
 
     const data = await response.json()
+    if (!response.ok) {
+      console.error('Perplexity API error:', data)
+      throw new Error(`Perplexity API error: ${data.error?.message || 'Unknown error'}`)
+    }
+
     const recipe = JSON.parse(data.choices[0].message.content)
 
     return new Response(JSON.stringify(recipe), {
