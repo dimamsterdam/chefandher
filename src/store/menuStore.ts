@@ -78,6 +78,24 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
 
     try {
+      // First check if the menu for this course exists in the database
+      const { data: courseCheck, error: courseCheckError } = await supabase
+        .from('courses')
+        .select('menu_id')
+        .eq('id', courseId)
+        .single();
+
+      if (courseCheckError) {
+        console.error('Course check error:', courseCheckError);
+        toast.error('Failed to verify course ownership');
+        return;
+      }
+
+      if (!courseCheck) {
+        toast.error('Please save the menu before generating recipes');
+        return;
+      }
+
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
           courseTitle: course.title,
@@ -100,7 +118,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         .select()
         .single();
 
-      if (saveError) throw saveError;
+      if (saveError) {
+        console.error('Recipe save error:', saveError);
+        throw new Error('Failed to save recipe');
+      }
 
       set((state) => ({
         courses: state.courses.map((c) =>
