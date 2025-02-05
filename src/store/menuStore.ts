@@ -111,7 +111,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       toast.success('Recipe generated successfully!');
     } catch (error: any) {
       console.error('Recipe generation error:', error);
-      toast.error(error.message);
+      toast.error(error.message || 'Failed to generate recipe');
     }
   },
   saveMenu: async () => {
@@ -160,7 +160,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       });
     } catch (error: any) {
       console.error('Menu save error:', error);
-      toast.error(error.message);
+      toast.error(error.message || 'Failed to save menu');
     }
   },
 }));
