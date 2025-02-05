@@ -1,13 +1,27 @@
+
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Plus, Minus, Save } from "lucide-react";
+import { motion, Reorder } from "framer-motion";
+import { Plus, Minus, Save, Trash2, GripVertical } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 const Index = () => {
-  const { name, guestCount, prepDays, courses, setName, setGuestCount, setPrepDays, addCourse } = useMenuStore();
+  const { 
+    name, 
+    guestCount, 
+    prepDays, 
+    courses, 
+    setName, 
+    setGuestCount, 
+    setPrepDays, 
+    addCourse, 
+    removeCourse,
+    reorderCourses,
+    saveMenu 
+  } = useMenuStore();
+  
   const [newCourseTitle, setNewCourseTitle] = useState("");
 
   const handleAddCourse = () => {
@@ -23,7 +37,7 @@ const Index = () => {
     toast.success("Course added successfully");
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name) {
       toast.error("Please enter a menu name");
       return;
@@ -32,8 +46,7 @@ const Index = () => {
       toast.error("Please add at least one course");
       return;
     }
-    toast.success("Menu saved successfully");
-    // TODO: Implement save functionality with Supabase
+    await saveMenu();
   };
 
   return (
@@ -109,22 +122,31 @@ const Index = () => {
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Courses</h2>
             
-            <div className="space-y-4">
-              {courses.map((course, index) => (
-                <motion.div
+            <Reorder.Group 
+              axis="y" 
+              values={courses} 
+              onReorder={reorderCourses}
+              className="space-y-4"
+            >
+              {courses.map((course) => (
+                <Reorder.Item
                   key={course.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex items-center space-x-4 p-4 glass rounded-lg"
+                  value={course}
+                  className="flex items-center space-x-4 p-4 glass rounded-lg cursor-move bg-white"
                 >
-                  <span className="text-sm font-medium text-gray-500">
-                    {index + 1}.
-                  </span>
+                  <GripVertical className="h-5 w-5 text-gray-400" />
                   <span className="flex-grow">{course.title}</span>
-                </motion.div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeCourse(course.id)}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </Reorder.Item>
               ))}
-            </div>
+            </Reorder.Group>
 
             <div className="flex space-x-2">
               <Input

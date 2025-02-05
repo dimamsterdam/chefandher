@@ -58,7 +58,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     
     try {
-      // First, create the menu
       const { data: menu, error: menuError } = await supabase
         .from('menus')
         .insert({
@@ -72,7 +71,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       if (menuError) throw menuError;
 
-      // Then, create all courses
       const { error: coursesError } = await supabase
         .from('courses')
         .insert(
