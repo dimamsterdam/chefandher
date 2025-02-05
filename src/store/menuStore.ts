@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuthStore } from './authStore';
 
 interface Course {
   id: string;
@@ -49,6 +50,12 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   reorderCourses: (courses) => set({ courses }),
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses } = get();
+    const { user } = useAuthStore.getState();
+    
+    if (!user) {
+      toast.error('You must be logged in to save a menu');
+      return;
+    }
     
     try {
       // First, create the menu
@@ -58,6 +65,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           name,
           guest_count: guestCount,
           prep_days: prepDays,
+          user_id: user.id
         })
         .select()
         .single();
