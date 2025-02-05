@@ -18,6 +18,8 @@ serve(async (req) => {
   try {
     const { courseTitle, guestCount, requirements } = await req.json()
 
+    console.log('Generating recipe for:', { courseTitle, guestCount, requirements })
+
     // Construct the prompt for recipe generation
     const prompt = `Generate a detailed recipe for ${courseTitle} that serves ${guestCount} people.
     ${requirements ? `Additional requirements: ${requirements}` : ''}
@@ -52,21 +54,46 @@ serve(async (req) => {
       }),
     })
 
-    const data = await response.json()
     if (!response.ok) {
-      console.error('Perplexity API error:', data)
-      throw new Error(`Perplexity API error: ${data.error?.message || 'Unknown error'}`)
+      console.error('Perplexity API error:', await response.text())
+      throw new Error(`Perplexity API error: ${response.statusText}`)
     }
 
-    const recipe = JSON.parse(data.choices[0].message.content)
+    const data = await response.json()
+    console.log('Perplexity API response:', data)
+
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response from Perplexity API')
+    }
+
+    let recipe
+    try {
+      recipe = JSON.parse(data.choices[0].message.content)
+    } catch (error) {
+      console.error('Failed to parse recipe JSON:', error)
+      throw new Error('Failed to parse recipe response')
+    }
+
+    // Validate recipe structure
+    const requiredFields = ['title', 'ingredients', 'instructions', 'prep_time_minutes', 'cook_time_minutes', 'servings']
+    for (const field of requiredFields) {
+      if (!recipe[field]) {
+        throw new Error(`Missing required field in recipe: ${field}`)
+      }
+    }
 
     return new Response(JSON.stringify(recipe), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200
     })
   } catch (error) {
     console.error('Error in generate-recipe function:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to generate recipe', details: error.message }),
+      JSON.stringify({ 
+        error: 'Failed to generate recipe', 
+        details: error.message,
+        timestamp: new Date().toISOString()
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 
@@ -74,4 +101,3 @@ serve(async (req) => {
     )
   }
 })
-
