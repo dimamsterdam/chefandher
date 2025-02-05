@@ -1,18 +1,16 @@
-
 import { create } from 'zustand';
 
-export interface Course {
+interface Course {
   id: string;
   title: string;
-  recipe?: string;
   order: number;
 }
 
 interface MenuState {
   name: string;
-  courses: Course[];
   guestCount: number;
   prepDays: number;
+  courses: Course[];
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
