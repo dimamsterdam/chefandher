@@ -106,6 +106,53 @@ export type Database = {
         }
         Relationships: []
       }
+      recipes: {
+        Row: {
+          cook_time_minutes: number
+          course_id: string | null
+          created_at: string
+          id: string
+          ingredients: string[]
+          instructions: string[]
+          prep_time_minutes: number
+          servings: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cook_time_minutes?: number
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          ingredients: string[]
+          instructions: string[]
+          prep_time_minutes?: number
+          servings?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cook_time_minutes?: number
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          ingredients?: string[]
+          instructions?: string[]
+          prep_time_minutes?: number
+          servings?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

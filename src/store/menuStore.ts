@@ -4,10 +4,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuthStore } from './authStore';
 
+interface Recipe {
+  id?: string;
+  course_id: string;
+  title: string;
+  ingredients: string[];
+  instructions: string[];
+  prep_time_minutes: number;
+  cook_time_minutes: number;
+  servings: number;
+}
+
 interface Course {
   id: string;
   title: string;
   order: number;
+  recipe?: Recipe;
 }
 
 interface MenuState {
@@ -22,6 +34,7 @@ interface MenuState {
   removeCourse: (id: string) => void;
   updateCourse: (id: string, updates: Partial<Course>) => void;
   reorderCourses: (courses: Course[]) => void;
+  generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
   saveMenu: () => Promise<void>;
 }
 
@@ -48,6 +61,50 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       ),
     })),
   reorderCourses: (courses) => set({ courses }),
+  generateRecipe: async (courseId: string, requirements?: string) => {
+    const { courses, guestCount } = get();
+    const course = courses.find((c) => c.id === courseId);
+    
+    if (!course) {
+      toast.error('Course not found');
+      return;
+    }
+
+    try {
+      const response = await supabase.functions.invoke('generate-recipe', {
+        body: {
+          courseTitle: course.title,
+          guestCount,
+          requirements,
+        },
+      });
+
+      if (response.error) throw response.error;
+
+      const recipe: Recipe = {
+        course_id: courseId,
+        ...response.data,
+      };
+
+      const { data: savedRecipe, error: saveError } = await supabase
+        .from('recipes')
+        .insert(recipe)
+        .select()
+        .single();
+
+      if (saveError) throw saveError;
+
+      set((state) => ({
+        courses: state.courses.map((c) =>
+          c.id === courseId ? { ...c, recipe: savedRecipe } : c
+        ),
+      }));
+
+      toast.success('Recipe generated successfully!');
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  },
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses } = get();
     const { user } = useAuthStore.getState();
