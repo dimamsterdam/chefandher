@@ -28,6 +28,7 @@ interface MenuState {
   guestCount: number;
   prepDays: number;
   courses: Course[];
+  menuId: string | null;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
@@ -37,6 +38,7 @@ interface MenuState {
   reorderCourses: (courses: Course[]) => void;
   generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
   saveMenu: () => Promise<void>;
+  reset: () => void;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -44,6 +46,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   courses: [],
   guestCount: 1,
   prepDays: 1,
+  menuId: null,
   setName: (name) => set({ name }),
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
@@ -63,7 +66,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     })),
   reorderCourses: (courses) => set({ courses }),
   generateRecipe: async (courseId: string, requirements?: string) => {
-    const { courses, guestCount } = get();
+    const { courses, guestCount, menuId } = get();
     const { user } = useAuthStore.getState();
     const course = courses.find((c) => c.id === courseId);
     
@@ -77,25 +80,12 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
+    if (!menuId) {
+      toast.error('Please save the menu first');
+      return;
+    }
+
     try {
-      // First check if the menu for this course exists in the database
-      const { data: courseCheck, error: courseCheckError } = await supabase
-        .from('courses')
-        .select('menu_id')
-        .eq('id', courseId)
-        .single();
-
-      if (courseCheckError) {
-        console.error('Course check error:', courseCheckError);
-        toast.error('Failed to verify course ownership');
-        return;
-      }
-
-      if (!courseCheck) {
-        toast.error('Please save the menu before generating recipes');
-        return;
-      }
-
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
           courseTitle: course.title,
@@ -136,7 +126,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   saveMenu: async () => {
-    const { name, guestCount, prepDays, courses } = get();
+    const { name, guestCount, prepDays, courses, menuId } = get();
     const { user } = useAuthStore.getState();
     
     if (!user) {
@@ -145,24 +135,44 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     
     try {
-      const { data: menu, error: menuError } = await supabase
-        .from('menus')
-        .insert({
-          name,
-          guest_count: guestCount,
-          prep_days: prepDays,
-          user_id: user.id
-        })
-        .select()
-        .single();
+      let currentMenuId = menuId;
+      
+      if (!currentMenuId) {
+        // Create new menu
+        const { data: menu, error: menuError } = await supabase
+          .from('menus')
+          .insert({
+            name,
+            guest_count: guestCount,
+            prep_days: prepDays,
+            user_id: user.id
+          })
+          .select()
+          .single();
 
-      if (menuError) throw menuError;
+        if (menuError) throw menuError;
+        currentMenuId = menu.id;
+        set({ menuId: currentMenuId });
+      } else {
+        // Update existing menu
+        const { error: updateError } = await supabase
+          .from('menus')
+          .update({
+            name,
+            guest_count: guestCount,
+            prep_days: prepDays
+          })
+          .eq('id', currentMenuId);
 
+        if (updateError) throw updateError;
+      }
+
+      // Save all courses
       const { error: coursesError } = await supabase
         .from('courses')
         .insert(
           courses.map((course) => ({
-            menu_id: menu.id,
+            menu_id: currentMenuId,
             title: course.title,
             order: course.order,
           }))
@@ -171,17 +181,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (coursesError) throw coursesError;
 
       toast.success('Menu saved successfully!');
-      
-      // Reset the form
-      set({
-        name: '',
-        courses: [],
-        guestCount: 1,
-        prepDays: 1,
-      });
     } catch (error: any) {
       console.error('Menu save error:', error);
       toast.error(error.message || 'Failed to save menu');
     }
   },
+  reset: () => set({
+    name: '',
+    courses: [],
+    guestCount: 1,
+    prepDays: 1,
+    menuId: null,
+  }),
 }));
