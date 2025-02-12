@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ const Index = () => {
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [openRecipe, setOpenRecipe] = useState<string | null>(null);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -45,13 +46,12 @@ const Index = () => {
   };
 
   const handleGenerateRecipe = async (courseId: string) => {
-    if (generatingFor) return; // Prevent multiple simultaneous generations
+    if (generatingFor) return;
     
     setGeneratingFor(courseId);
     try {
       await generateRecipe(courseId);
     } catch (error) {
-      // Error is already handled in the store with toast
       console.error('Recipe generation failed:', error);
     } finally {
       setGeneratingFor(null);
@@ -141,12 +141,22 @@ const Index = () => {
                 <Reorder.Item
                   key={course.id}
                   value={course}
-                  className="flex flex-col p-4 glass rounded-lg cursor-move bg-white"
+                  className={`flex flex-col p-4 glass rounded-lg cursor-move bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
                 >
                   <div className="flex items-center space-x-4">
-                    <GripVertical className="h-5 w-5 text-gray-400" />
-                    <span className="flex-grow">{course.title}</span>
+                    <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    <span className="flex-grow font-medium">{course.title}</span>
                     <div className="flex items-center gap-2">
+                      {course.recipe && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setOpenRecipe(openRecipe === course.id ? null : course.id)}
+                          className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="icon"
@@ -155,6 +165,7 @@ const Index = () => {
                           handleGenerateRecipe(course.id);
                         }}
                         disabled={generatingFor === course.id}
+                        className={course.recipe ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' : ''}
                       >
                         {generatingFor === course.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -175,42 +186,43 @@ const Index = () => {
                     </div>
                   </div>
 
-                  {course.recipe && (
-                    <Accordion type="single" collapsible className="w-full mt-4">
-                      <AccordionItem value="recipe">
-                        <AccordionTrigger>View Recipe</AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-4 pt-2">
-                            <div>
-                              <h4 className="font-medium mb-2">Ingredients:</h4>
-                              <ul className="list-disc pl-5 space-y-1">
-                                {course.recipe.ingredients.map((ingredient, idx) => (
-                                  <li key={idx}>{ingredient}</li>
-                                ))}
-                              </ul>
-                            </div>
-                            <div>
-                              <h4 className="font-medium mb-2">Instructions:</h4>
-                              <ol className="list-decimal pl-5 space-y-2">
-                                {course.recipe.instructions.map((instruction, idx) => (
-                                  <li key={idx}>{instruction}</li>
-                                ))}
-                              </ol>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                              <div>
-                                <span className="font-medium">Prep Time:</span>{" "}
-                                {course.recipe.prep_time_minutes} minutes
-                              </div>
-                              <div>
-                                <span className="font-medium">Cook Time:</span>{" "}
-                                {course.recipe.cook_time_minutes} minutes
-                              </div>
-                            </div>
+                  {course.recipe && openRecipe === course.id && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-4 pt-4 border-t"
+                    >
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="font-medium mb-2 text-gray-700">Ingredients:</h4>
+                          <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                            {course.recipe.ingredients.map((ingredient, idx) => (
+                              <li key={idx}>{ingredient}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2 text-gray-700">Instructions:</h4>
+                          <ol className="list-decimal pl-5 space-y-2 text-gray-600">
+                            {course.recipe.instructions.map((instruction, idx) => (
+                              <li key={idx}>{instruction}</li>
+                            ))}
+                          </ol>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                          <div>
+                            <span className="font-medium">Prep Time:</span>{" "}
+                            {course.recipe.prep_time_minutes} minutes
                           </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
+                          <div>
+                            <span className="font-medium">Cook Time:</span>{" "}
+                            {course.recipe.cook_time_minutes} minutes
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
                 </Reorder.Item>
               ))}
