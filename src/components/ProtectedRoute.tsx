@@ -50,7 +50,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           .eq('id', session.user.id)
           .single();
         setProfile(profile);
-      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
         navigate('/auth');

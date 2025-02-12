@@ -22,27 +22,31 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const { error } = isSignUp
-        ? await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              emailRedirectTo: window.location.origin,
-            },
-          })
-        : await supabase.auth.signInWithPassword({
-            email,
-            password,
-            options: {
-              persistSession: rememberMe,
-            },
-          });
-
-      if (error) throw error;
-
       if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
         toast.success('Check your email to verify your account!');
       } else {
+        // For sign in, we first set the session config
+        if (rememberMe) {
+          await supabase.auth.setSession({
+            access_token: '',
+            refresh_token: '',
+          });
+        }
+        
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        if (error) throw error;
         toast.success('Successfully logged in!');
         navigate('/');
       }
