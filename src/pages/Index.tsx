@@ -72,7 +72,7 @@ const Index = () => {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter menu name (or leave blank for 'Untitled')"
+                placeholder="Enter menu name"
                 className="max-w-md"
               />
             </div>
