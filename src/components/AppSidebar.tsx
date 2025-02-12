@@ -56,23 +56,23 @@ export function AppSidebar() {
   const { profile, signOut } = useAuthStore()
 
   return (
-    <Sidebar className="border-r border-gray-200">
+    <Sidebar className="border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
       <SidebarHeader>
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100">
-            <User className="h-5 w-5 text-gray-600" />
+        <div className="flex items-center gap-3 px-6 py-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg ring-2 ring-purple-500/20">
+            <User className="h-6 w-6 text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-gray-900">
+            <span className="text-base font-semibold text-gray-900 tracking-tight">
               {profile?.full_name || "User"}
             </span>
-            <span className="text-xs text-gray-500">Chef</span>
+            <span className="text-sm text-purple-600 font-medium">Chef</span>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold text-gray-500 px-4 py-2">
+          <SidebarGroupLabel className="text-xs font-bold text-purple-950/70 px-6 py-3 uppercase tracking-wider">
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -82,11 +82,31 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     isActive={location.pathname === item.path}
-                    className="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors hover:bg-gray-100"
+                    className={`group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                      location.pathname === item.path
+                        ? "bg-purple-100 text-purple-900"
+                        : "hover:bg-gray-100"
+                    }`}
                   >
-                    <Link to={item.path}>
-                      <item.icon className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">{item.title}</span>
+                    <Link to={item.path} className="flex items-center gap-3">
+                      <div className={`p-1.5 rounded-md transition-colors duration-200 ${
+                        location.pathname === item.path
+                          ? "bg-purple-200"
+                          : "bg-white shadow-sm group-hover:bg-purple-50"
+                      }`}>
+                        <item.icon className={`h-4 w-4 transition-colors duration-200 ${
+                          location.pathname === item.path
+                            ? "text-purple-600"
+                            : "text-gray-600 group-hover:text-purple-600"
+                        }`} />
+                      </div>
+                      <span className={`text-sm font-medium transition-colors duration-200 ${
+                        location.pathname === item.path
+                          ? "text-purple-900"
+                          : "text-gray-700 group-hover:text-purple-900"
+                      }`}>
+                        {item.title}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -95,17 +115,21 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="pb-4">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton 
                   onClick={() => signOut()}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg text-red-600 transition-colors hover:bg-red-50 w-full"
+                  className="group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 hover:bg-red-50"
                 >
-                  <LogOut className="h-4 w-4" />
-                  <span className="text-sm font-medium">Sign Out</span>
+                  <div className="p-1.5 rounded-md bg-white shadow-sm group-hover:bg-red-100">
+                    <LogOut className="h-4 w-4 text-gray-600 group-hover:text-red-600" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 group-hover:text-red-600">
+                    Sign Out
+                  </span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
