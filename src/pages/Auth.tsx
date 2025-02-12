@@ -23,35 +23,54 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
         });
-        if (error) throw error;
-        toast.success('Check your email to verify your account!');
-      } else {
-        // For sign in, we first set the session config
-        if (rememberMe) {
-          await supabase.auth.setSession({
-            access_token: '',
-            refresh_token: '',
-          });
+
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            toast.error('An account with this email already exists. Please sign in instead.');
+          } else {
+            toast.error(error.message);
+          }
+          return;
         }
-        
-        const { error } = await supabase.auth.signInWithPassword({
+
+        if (data.user && data.user.identities && data.user.identities.length === 0) {
+          toast.error('An account with this email already exists. Please sign in instead.');
+          return;
+        }
+
+        toast.success('Check your email to verify your account!');
+        setIsSignUp(false); // Switch to sign in mode
+      } else {
+        // For sign in
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        
-        if (error) throw error;
+
+        if (signInError) {
+          if (signInError.message.includes('Invalid login credentials')) {
+            toast.error('Invalid email or password. Please try again.');
+          } else if (signInError.message.includes('Email not confirmed')) {
+            toast.error('Please verify your email before signing in.');
+          } else {
+            toast.error(signInError.message);
+          }
+          return;
+        }
+
         toast.success('Successfully logged in!');
         navigate('/');
       }
     } catch (error: any) {
-      toast.error(error.message);
+      console.error('Auth error:', error);
+      toast.error(error.message || 'An error occurred during authentication');
     } finally {
       setIsLoading(false);
     }
@@ -77,6 +96,8 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="w-full"
+                autoComplete="email"
               />
             </div>
             <div>
@@ -87,6 +108,8 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
+                className="w-full"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
               />
             </div>
             {!isSignUp && (
