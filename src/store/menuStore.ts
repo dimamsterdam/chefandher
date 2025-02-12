@@ -50,8 +50,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   menuId: null,
   setName: async (name) => {
     set({ name });
-    const state = get();
-    await state.saveMenu();
+    try {
+      await get().saveMenu();
+    } catch (error) {
+      console.error('Failed to save menu name:', error);
+    }
   },
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
@@ -85,20 +88,22 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
-    // Save menu if not saved yet
-    if (!menuId) {
-      await get().saveMenu();
-    }
-
-    if (!course.dbId) {
-      toast.error('Please wait while the menu is being saved');
-      return;
-    }
-
     try {
+      // Save menu first if not saved
+      if (!menuId) {
+        await get().saveMenu();
+      }
+
+      // Get the latest course state after menu save
+      const updatedCourse = get().courses.find((c) => c.id === courseId);
+      if (!updatedCourse?.dbId) {
+        toast.error('Failed to save course. Please try again.');
+        return;
+      }
+
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
-          courseTitle: course.title,
+          courseTitle: updatedCourse.title,
           guestCount,
           requirements,
         },
@@ -114,7 +119,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       }
 
       const recipe: Recipe = {
-        course_id: course.dbId,
+        course_id: updatedCourse.dbId,
         created_by: user.id,
         ...response.data,
       };
@@ -140,7 +145,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     } catch (error: any) {
       console.error('Recipe generation error:', error);
       toast.error(error.message || 'Failed to generate recipe');
-      throw error; // Re-throw to handle loading state in component
+      throw error;
     }
   },
   saveMenu: async () => {
@@ -186,7 +191,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         if (updateError) throw updateError;
       }
 
-      // Save all courses and store their database IDs
+      // Delete existing courses and insert new ones
+      const { error: deleteError } = await supabase
+        .from('courses')
+        .delete()
+        .eq('menu_id', currentMenuId);
+
+      if (deleteError) throw deleteError;
+
       const { data: savedCourses, error: coursesError } = await supabase
         .from('courses')
         .insert(
