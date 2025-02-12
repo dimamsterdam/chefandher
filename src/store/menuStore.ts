@@ -21,7 +21,7 @@ interface Course {
   title: string;
   order: number;
   recipe?: Recipe;
-  dbId?: string; // Added to store the database ID
+  dbId?: string;
 }
 
 interface MenuState {
@@ -104,7 +104,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        console.error('Recipe generation error:', response.error);
+        throw new Error(response.error.message || 'Failed to generate recipe');
+      }
+
+      if (!response.data) {
+        throw new Error('No recipe data received');
+      }
 
       const recipe: Recipe = {
         course_id: course.dbId,
@@ -133,6 +140,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     } catch (error: any) {
       console.error('Recipe generation error:', error);
       toast.error(error.message || 'Failed to generate recipe');
+      throw error; // Re-throw to handle loading state in component
     }
   },
   saveMenu: async () => {
@@ -204,6 +212,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     } catch (error: any) {
       console.error('Menu save error:', error);
       toast.error(error.message || 'Failed to save menu');
+      throw error;
     }
   },
   reset: () => set({

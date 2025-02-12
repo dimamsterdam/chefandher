@@ -45,9 +45,14 @@ const Index = () => {
   };
 
   const handleGenerateRecipe = async (courseId: string) => {
+    if (generatingFor) return; // Prevent multiple simultaneous generations
+    
     setGeneratingFor(courseId);
     try {
       await generateRecipe(courseId);
+    } catch (error) {
+      // Error is already handled in the store with toast
+      console.error('Recipe generation failed:', error);
     } finally {
       setGeneratingFor(null);
     }
