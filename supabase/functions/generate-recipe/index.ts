@@ -20,21 +20,31 @@ serve(async (req) => {
 
     console.log('Generating recipe for:', { courseTitle, guestCount, requirements })
 
-    // Construct the prompt for recipe generation with explicit formatting instructions
-    const prompt = `You are a professional chef. Generate a recipe for ${courseTitle} that serves ${guestCount} people.
+    // Make the prompt more explicit about required fields and their types
+    const prompt = `As a professional chef, create a recipe for ${courseTitle} that serves ${guestCount} people.
     ${requirements ? `Additional requirements: ${requirements}` : ''}
-    
-    You must respond with ONLY a JSON object in this exact format, with no additional text or markdown:
+
+    Respond with ONLY a single JSON object in this EXACT format:
     {
-      "title": "Recipe title",
-      "ingredients": ["ingredient 1 with quantity", "ingredient 2 with quantity"],
-      "instructions": ["step 1", "step 2"],
-      "prep_time_minutes": 30,
-      "cook_time_minutes": 45,
+      "title": "${courseTitle}",
+      "ingredients": [
+        "quantity ingredient 1",
+        "quantity ingredient 2"
+      ],
+      "instructions": [
+        "Step 1: detailed instruction",
+        "Step 2: detailed instruction"
+      ],
+      "prep_time_minutes": <number between 5 and 120>,
+      "cook_time_minutes": <number between 5 and 180>,
       "servings": ${guestCount}
     }
-    
-    Ensure all fields are present and that the response is valid JSON. Use numbers for time values, not strings.`
+
+    MUST include ALL fields exactly as shown. ALL time values MUST be numbers, not strings.
+    prep_time_minutes and cook_time_minutes MUST be numbers between 5 and 180.
+    ingredients and instructions MUST be arrays of strings.
+    servings MUST match the requested guest count of ${guestCount}.
+    Do not include any additional text or fields.`
 
     console.log('Sending prompt to Perplexity:', prompt)
 
@@ -49,12 +59,11 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: 'You are a professional chef that ONLY responds with valid JSON objects containing recipe details. Never include any additional text, markdown, or formatting.' 
+            content: 'You are a professional chef that ONLY responds with valid JSON objects containing complete recipe details with exact fields as requested. Never include any additional text or fields.' 
           },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.1, // Reduced temperature for more consistent formatting
-        top_p: 0.9,
+        temperature: 0.1, // Keep temperature low for consistent formatting
         max_tokens: 1000,
       }),
     })
@@ -85,23 +94,37 @@ serve(async (req) => {
       throw new Error('Failed to parse recipe response')
     }
 
-    // Validate recipe structure
+    // Validate recipe structure and data types with detailed error messages
     const requiredFields = ['title', 'ingredients', 'instructions', 'prep_time_minutes', 'cook_time_minutes', 'servings']
     for (const field of requiredFields) {
-      if (!recipe[field]) {
-        console.error('Missing field in recipe:', field, 'Recipe was:', recipe)
-        throw new Error(`Missing required field in recipe: ${field}`)
+      if (!(field in recipe)) {
+        console.error(`Missing field in recipe: ${field}`, recipe)
+        throw new Error(`Missing required field: ${field}`)
       }
     }
 
-    // Validate data types
-    if (!Array.isArray(recipe.ingredients) || !Array.isArray(recipe.instructions)) {
-      throw new Error('ingredients and instructions must be arrays')
-    }
-    if (typeof recipe.prep_time_minutes !== 'number' || typeof recipe.cook_time_minutes !== 'number') {
-      throw new Error('prep_time_minutes and cook_time_minutes must be numbers')
+    // Type and value validation
+    if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+      throw new Error('ingredients must be a non-empty array of strings')
     }
 
+    if (!Array.isArray(recipe.instructions) || recipe.instructions.length === 0) {
+      throw new Error('instructions must be a non-empty array of strings')
+    }
+
+    if (typeof recipe.prep_time_minutes !== 'number' || recipe.prep_time_minutes < 5 || recipe.prep_time_minutes > 180) {
+      throw new Error('prep_time_minutes must be a number between 5 and 180')
+    }
+
+    if (typeof recipe.cook_time_minutes !== 'number' || recipe.cook_time_minutes < 5 || recipe.cook_time_minutes > 180) {
+      throw new Error('cook_time_minutes must be a number between 5 and 180')
+    }
+
+    if (recipe.servings !== guestCount) {
+      recipe.servings = guestCount // Fix servings count if it doesn't match
+    }
+
+    // If we get here, all validations passed
     return new Response(JSON.stringify(recipe), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
