@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Save, Trash2, GripVertical, ChefHat, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2 } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,6 @@ const Index = () => {
     addCourse, 
     removeCourse,
     reorderCourses,
-    saveMenu,
     generateRecipe 
   } = useMenuStore();
   
@@ -54,18 +53,6 @@ const Index = () => {
     }
   };
 
-  const handleSave = async () => {
-    if (!name) {
-      toast.error("Please enter a menu name");
-      return;
-    }
-    if (courses.length === 0) {
-      toast.error("Please add at least one course");
-      return;
-    }
-    await saveMenu();
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -85,7 +72,7 @@ const Index = () => {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter menu name (e.g., Christmas Menu)"
+                placeholder="Enter menu name (or leave blank for 'Untitled')"
                 className="max-w-md"
               />
             </div>
@@ -242,14 +229,6 @@ const Index = () => {
                 Add Course
               </Button>
             </div>
-          </div>
-
-          {/* Save Button */}
-          <div className="mt-8">
-            <Button onClick={handleSave} className="w-full md:w-auto">
-              <Save className="h-4 w-4 mr-2" />
-              Save Menu
-            </Button>
           </div>
         </motion.div>
       </div>

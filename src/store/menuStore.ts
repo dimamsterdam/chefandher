@@ -48,7 +48,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   guestCount: 1,
   prepDays: 1,
   menuId: null,
-  setName: (name) => set({ name }),
+  setName: async (name) => {
+    set({ name });
+    const state = get();
+    await state.saveMenu();
+  },
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
   addCourse: (course) =>
@@ -81,13 +85,13 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
+    // Save menu if not saved yet
     if (!menuId) {
-      toast.error('Please save the menu first');
-      return;
+      await get().saveMenu();
     }
 
     if (!course.dbId) {
-      toast.error('Please save the menu first to get course IDs');
+      toast.error('Please wait while the menu is being saved');
       return;
     }
 
@@ -103,7 +107,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (response.error) throw response.error;
 
       const recipe: Recipe = {
-        course_id: course.dbId, // Use the database ID instead of local ID
+        course_id: course.dbId,
         created_by: user.id,
         ...response.data,
       };
@@ -142,13 +146,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     
     try {
       let currentMenuId = menuId;
+      const menuName = name.trim() || 'Untitled';
       
       if (!currentMenuId) {
         // Create new menu
         const { data: menu, error: menuError } = await supabase
           .from('menus')
           .insert({
-            name,
+            name: menuName,
             guest_count: guestCount,
             prep_days: prepDays,
             user_id: user.id
@@ -164,7 +169,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         const { error: updateError } = await supabase
           .from('menus')
           .update({
-            name,
+            name: menuName,
             guest_count: guestCount,
             prep_days: prepDays
           })
@@ -196,8 +201,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           })),
         }));
       }
-
-      toast.success('Menu saved successfully!');
     } catch (error: any) {
       console.error('Menu save error:', error);
       toast.error(error.message || 'Failed to save menu');
