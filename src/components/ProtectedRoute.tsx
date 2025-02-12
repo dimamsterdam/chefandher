@@ -11,7 +11,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        // Check current session
+        // Get the current session from Supabase
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
@@ -26,6 +26,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             
           setProfile(profile);
         } else {
+          setUser(null);
+          setProfile(null);
           navigate('/auth');
         }
       } catch (error) {
@@ -38,7 +40,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     fetchUser();
 
-    // Listen for auth changes
+    // Set up real-time auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
@@ -48,13 +50,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           .eq('id', session.user.id)
           .single();
         setProfile(profile);
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setUser(null);
         setProfile(null);
         navigate('/auth');
       }
     });
 
+    // Cleanup subscription on unmount
     return () => {
       subscription.unsubscribe();
     };

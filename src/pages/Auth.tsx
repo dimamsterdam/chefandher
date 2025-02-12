@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const navigate = useNavigate();
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -24,10 +26,16 @@ const Auth = () => {
         ? await supabase.auth.signUp({
             email,
             password,
+            options: {
+              emailRedirectTo: window.location.origin,
+            },
           })
         : await supabase.auth.signInWithPassword({
             email,
             password,
+            options: {
+              persistSession: rememberMe,
+            },
           });
 
       if (error) throw error;
@@ -77,6 +85,21 @@ const Auth = () => {
                 minLength={6}
               />
             </div>
+            {!isSignUp && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <label
+                  htmlFor="remember"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Remember me for 90 days
+                </label>
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full"
