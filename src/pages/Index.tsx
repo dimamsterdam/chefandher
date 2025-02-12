@@ -1,17 +1,11 @@
 
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 
 const Index = () => {
   const { 
@@ -25,12 +19,15 @@ const Index = () => {
     addCourse, 
     removeCourse,
     reorderCourses,
-    generateRecipe 
+    generateRecipe,
+    updateCourse 
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [openRecipe, setOpenRecipe] = useState<string | null>(null);
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -56,6 +53,25 @@ const Index = () => {
     } finally {
       setGeneratingFor(null);
     }
+  };
+
+  const startEditing = (course: { id: string; title: string }) => {
+    setEditingCourseId(course.id);
+    setEditingTitle(course.title);
+  };
+
+  const saveEditing = () => {
+    if (editingCourseId && editingTitle.trim()) {
+      updateCourse(editingCourseId, { title: editingTitle.trim() });
+      setEditingCourseId(null);
+      setEditingTitle("");
+      toast.success("Course title updated");
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingCourseId(null);
+    setEditingTitle("");
   };
 
   return (
@@ -145,7 +161,44 @@ const Index = () => {
                 >
                   <div className="flex items-center space-x-4">
                     <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    <span className="flex-grow font-medium">{course.title}</span>
+                    {editingCourseId === course.id ? (
+                      <div className="flex-grow flex items-center gap-2">
+                        <Input
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          className="flex-grow"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              saveEditing();
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={saveEditing}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={cancelEditing}
+                          className="text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span 
+                        className="flex-grow font-medium hover:text-purple-600 cursor-pointer" 
+                        onClick={() => startEditing(course)}
+                      >
+                        {course.title}
+                      </span>
+                    )}
                     <div className="flex items-center gap-2">
                       {course.recipe && (
                         <Button
