@@ -94,16 +94,37 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         await get().saveMenu();
       }
 
-      // Get the latest course state after menu save
-      const updatedCourse = get().courses.find((c) => c.id === courseId);
+      // Get the latest menu state and course after menu save
+      const currentState = get();
+      const updatedCourse = currentState.courses.find((c) => c.id === courseId);
+      
+      if (!currentState.menuId) {
+        toast.error('Failed to save menu. Please try again.');
+        return;
+      }
+
       if (!updatedCourse?.dbId) {
+        // Try to save the menu again to get the course dbId
+        await get().saveMenu();
+        const retryState = get();
+        const retryCourse = retryState.courses.find((c) => c.id === courseId);
+        
+        if (!retryCourse?.dbId) {
+          toast.error('Failed to save course. Please try again.');
+          return;
+        }
+      }
+
+      // Get the final course state after all saves
+      const finalCourse = get().courses.find((c) => c.id === courseId);
+      if (!finalCourse?.dbId) {
         toast.error('Failed to save course. Please try again.');
         return;
       }
 
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
-          courseTitle: updatedCourse.title,
+          courseTitle: finalCourse.title,
           guestCount,
           requirements,
         },
@@ -119,7 +140,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       }
 
       const recipe: Recipe = {
-        course_id: updatedCourse.dbId,
+        course_id: finalCourse.dbId,
         created_by: user.id,
         ...response.data,
       };
