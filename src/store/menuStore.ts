@@ -21,6 +21,7 @@ interface Course {
   title: string;
   order: number;
   recipe?: Recipe;
+  dbId?: string; // Added to store the database ID
 }
 
 interface MenuState {
@@ -85,6 +86,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
+    if (!course.dbId) {
+      toast.error('Please save the menu first to get course IDs');
+      return;
+    }
+
     try {
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
@@ -97,7 +103,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (response.error) throw response.error;
 
       const recipe: Recipe = {
-        course_id: courseId,
+        course_id: course.dbId, // Use the database ID instead of local ID
         created_by: user.id,
         ...response.data,
       };
@@ -167,8 +173,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         if (updateError) throw updateError;
       }
 
-      // Save all courses
-      const { error: coursesError } = await supabase
+      // Save all courses and store their database IDs
+      const { data: savedCourses, error: coursesError } = await supabase
         .from('courses')
         .insert(
           courses.map((course) => ({
@@ -176,9 +182,20 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             title: course.title,
             order: course.order,
           }))
-        );
+        )
+        .select();
 
       if (coursesError) throw coursesError;
+
+      // Update local courses with their database IDs
+      if (savedCourses) {
+        set((state) => ({
+          courses: state.courses.map((course, index) => ({
+            ...course,
+            dbId: savedCourses[index].id,
+          })),
+        }));
+      }
 
       toast.success('Menu saved successfully!');
     } catch (error: any) {
