@@ -50,6 +50,7 @@ const Index = () => {
       await generateRecipe(courseId, `Please adjust all ingredient quantities to serve ${guestCount} people.`);
     } catch (error) {
       console.error('Recipe generation failed:', error);
+      toast.error('Failed to generate recipe. Please try again.');
     } finally {
       setGeneratingFor(null);
     }
@@ -215,6 +216,7 @@ const Index = () => {
                         size="icon"
                         onClick={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           handleGenerateRecipe(course.id);
                         }}
                         disabled={generatingFor === course.id}
