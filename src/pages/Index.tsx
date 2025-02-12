@@ -47,7 +47,7 @@ const Index = () => {
     
     setGeneratingFor(courseId);
     try {
-      await generateRecipe(courseId);
+      await generateRecipe(courseId, `Please adjust all ingredient quantities to serve ${guestCount} people.`);
     } catch (error) {
       console.error('Recipe generation failed:', error);
     } finally {
