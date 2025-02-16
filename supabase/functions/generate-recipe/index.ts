@@ -13,61 +13,96 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
+      console.log(`Attempt ${attempt + 1}: Starting recipe generation`)
+      const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+      if (!apiKey) {
+        throw new Error('PERPLEXITY_API_KEY is not set')
+      }
+
+      const requestBody = {
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          { 
+            role: 'system', 
+            content: `You are a professional chef that ONLY responds with valid JSON objects. 
+            Your response must ALWAYS include these exact fields:
+            - title (string)
+            - ingredients (array of strings)
+            - instructions (array of strings)
+            - prep_time_minutes (number between 5 and 180)
+            - cook_time_minutes (number between 5 and 180)
+            - servings (number matching requested guest count)
+            Never include any additional text or fields.`
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.0,
+        max_tokens: 1000,
+      }
+
+      console.log('Request body:', JSON.stringify(requestBody, null, 2))
+
       const response = await fetch(PERPLEXITY_API_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${Deno.env.get('PERPLEXITY_API_KEY')}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: 'llama-3.1-sonar-small-128k-online',
-          messages: [
-            { 
-              role: 'system', 
-              content: `You are a professional chef that ONLY responds with valid JSON objects. 
-              Your response must ALWAYS include these exact fields:
-              - title (string)
-              - ingredients (array of strings)
-              - instructions (array of strings)
-              - prep_time_minutes (number between 5 and 180)
-              - cook_time_minutes (number between 5 and 180)
-              - servings (number matching requested guest count)
-              Never include any additional text or fields.`
-            },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.0, // Set to 0 for maximum consistency
-          max_tokens: 1000,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
+      const responseText = await response.text()
+      console.log(`Attempt ${attempt + 1} raw response:`, responseText)
+
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`Perplexity API error (attempt ${attempt + 1}):`, errorText)
-        throw new Error(`Perplexity API error: ${response.statusText}`)
+        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
       }
 
-      const data = await response.json()
-      console.log(`Attempt ${attempt + 1} response:`, JSON.stringify(data, null, 2))
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (error) {
+        console.error('Failed to parse API response:', error)
+        throw new Error(`Invalid JSON response: ${responseText}`)
+      }
+
+      console.log(`Attempt ${attempt + 1} parsed response:`, JSON.stringify(data, null, 2))
 
       if (!data.choices?.[0]?.message?.content) {
         throw new Error('Invalid API response structure')
       }
 
-      const recipe = JSON.parse(data.choices[0].message.content.trim())
+      let recipe
+      try {
+        recipe = JSON.parse(data.choices[0].message.content.trim())
+      } catch (error) {
+        console.error('Failed to parse recipe JSON:', error)
+        throw new Error(`Invalid recipe JSON: ${data.choices[0].message.content}`)
+      }
+
+      console.log(`Attempt ${attempt + 1} parsed recipe:`, JSON.stringify(recipe, null, 2))
       
       // Validate all required fields are present and have correct types
-      if (!recipe.title || typeof recipe.title !== 'string') throw new Error('Invalid title')
-      if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) throw new Error('Invalid ingredients')
-      if (!Array.isArray(recipe.instructions) || recipe.instructions.length === 0) throw new Error('Invalid instructions')
+      if (!recipe.title || typeof recipe.title !== 'string') {
+        throw new Error('Invalid title')
+      }
+      if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+        throw new Error('Invalid ingredients')
+      }
+      if (!Array.isArray(recipe.instructions) || recipe.instructions.length === 0) {
+        throw new Error('Invalid instructions')
+      }
       if (typeof recipe.prep_time_minutes !== 'number' || recipe.prep_time_minutes < 5 || recipe.prep_time_minutes > 180) {
         throw new Error('Invalid prep_time_minutes')
       }
       if (typeof recipe.cook_time_minutes !== 'number' || recipe.cook_time_minutes < 5 || recipe.cook_time_minutes > 180) {
         throw new Error('Invalid cook_time_minutes')
       }
-      if (typeof recipe.servings !== 'number') throw new Error('Invalid servings')
+      if (typeof recipe.servings !== 'number') {
+        throw new Error('Invalid servings')
+      }
 
+      console.log(`Attempt ${attempt + 1}: Recipe validation passed`)
       return recipe
     } catch (error) {
       console.error(`Attempt ${attempt + 1} failed:`, error)
