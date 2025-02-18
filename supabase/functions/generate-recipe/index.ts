@@ -8,6 +8,14 @@ const corsHeaders = {
 
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
+function cleanJsonResponse(response: string): string {
+  // Remove markdown code block syntax if present
+  return response
+    .replace(/^```json\s*/, '')  // Remove opening ```json
+    .replace(/```\s*$/, '')      // Remove closing ```
+    .trim();                     // Remove any extra whitespace
+}
+
 async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<any> {
   let lastError: Error | null = null;
   
@@ -32,7 +40,8 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
             - prep_time_minutes (number between 5 and 180)
             - cook_time_minutes (number between 5 and 180)
             - servings (number matching requested guest count)
-            Never include any additional text or fields.`
+            Never include any additional text or fields.
+            DO NOT wrap the JSON in markdown code blocks.`
           },
           { role: 'user', content: prompt }
         ],
@@ -72,12 +81,16 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         throw new Error('Invalid API response structure')
       }
 
+      // Clean the response content before parsing
+      const cleanedContent = cleanJsonResponse(data.choices[0].message.content)
+      console.log(`Attempt ${attempt + 1} cleaned content:`, cleanedContent)
+
       let recipe
       try {
-        recipe = JSON.parse(data.choices[0].message.content.trim())
+        recipe = JSON.parse(cleanedContent)
       } catch (error) {
         console.error('Failed to parse recipe JSON:', error)
-        throw new Error(`Invalid recipe JSON: ${data.choices[0].message.content}`)
+        throw new Error(`Invalid recipe JSON: ${cleanedContent}`)
       }
 
       console.log(`Attempt ${attempt + 1} parsed recipe:`, JSON.stringify(recipe, null, 2))
@@ -151,7 +164,8 @@ serve(async (req) => {
     3. prep_time_minutes and cook_time_minutes must be numbers between 5 and 180
     4. ingredients and instructions must be non-empty arrays of strings
     5. servings must equal ${guestCount}
-    6. DO NOT include any text outside the JSON object`
+    6. DO NOT include any text outside the JSON object
+    7. DO NOT wrap the response in markdown code blocks`
 
     const recipe = await generateRecipeWithRetry(prompt)
 
@@ -177,4 +191,3 @@ serve(async (req) => {
     )
   }
 })
-
