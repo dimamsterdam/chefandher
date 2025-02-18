@@ -48,6 +48,7 @@ const Index = () => {
     setGeneratingFor(courseId);
     try {
       await generateRecipe(courseId, `Please adjust all ingredient quantities to serve ${guestCount} people.`);
+      toast.success("Recipe generated successfully!");
     } catch (error) {
       console.error('Recipe generation failed:', error);
       toast.error('Failed to generate recipe. Please try again.');
@@ -214,16 +215,23 @@ const Index = () => {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleGenerateRecipe(course.id);
-                        }}
-                        disabled={generatingFor === course.id}
-                        className={course.recipe ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' : ''}
+                        onClick={() => handleGenerateRecipe(course.id)}
+                        disabled={!!generatingFor}
+                        className={`relative ${
+                          course.recipe 
+                            ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
+                            : ''
+                        } ${
+                          generatingFor === course.id 
+                            ? 'bg-purple-50' 
+                            : ''
+                        }`}
                       >
                         {generatingFor === course.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="sr-only">Generating recipe...</span>
+                          </>
                         ) : course.recipe ? (
                           <RefreshCw className="h-4 w-4" />
                         ) : (
@@ -235,6 +243,7 @@ const Index = () => {
                         size="icon"
                         onClick={() => removeCourse(course.id)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        disabled={generatingFor === course.id}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
