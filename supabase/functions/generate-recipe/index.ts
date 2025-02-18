@@ -20,7 +20,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       }
 
       const requestBody = {
-        model: 'llama-3.1-sonar-small-128k-online',
+        model: 'llama-3.1-sonar-large-128k-online',
         messages: [
           { 
             role: 'system', 
@@ -177,3 +177,4 @@ serve(async (req) => {
     )
   }
 })
+
