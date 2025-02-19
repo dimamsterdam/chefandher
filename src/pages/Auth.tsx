@@ -23,6 +23,7 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
+        // Sign Up flow
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -40,6 +41,7 @@ const Auth = () => {
           return;
         }
 
+        // Check if user was actually created
         if (data.user && data.user.identities && data.user.identities.length === 0) {
           toast.error('An account with this email already exists. Please sign in instead.');
           return;
@@ -48,13 +50,15 @@ const Auth = () => {
         toast.success('Check your email to verify your account!');
         setIsSignUp(false); // Switch to sign in mode
       } else {
-        // For sign in
+        // Sign In flow
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (signInError) {
+          console.error('Sign in error:', signInError);
+          
           if (signInError.message.includes('Invalid login credentials')) {
             toast.error('Invalid email or password. Please try again.');
           } else if (signInError.message.includes('Email not confirmed')) {
