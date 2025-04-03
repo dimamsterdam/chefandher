@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -45,7 +46,7 @@ interface MenuState {
 export const useMenuStore = create<MenuState>((set, get) => ({
   name: '',
   courses: [],
-  guestCount: 1,
+  guestCount:.1,
   prepDays: 1,
   menuId: null,
   setName: async (name) => {
@@ -167,7 +168,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   generateMenu: async (prompt: string) => {
     const { user } = useAuthStore.getState();
-    const { menuId, saveMenu, addCourse } = get();
+    const { menuId, saveMenu, addCourse, name, guestCount } = get();
     
     if (!user) {
       toast.error('You must be logged in to generate a menu');
@@ -183,6 +184,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         body: {
           generateMenu: true,
           prompt,
+          menuName: name,
+          guestCount: guestCount
         },
       });
 

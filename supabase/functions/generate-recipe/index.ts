@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -130,16 +129,136 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   throw lastError || new Error('Failed to generate recipe after all retries')
 }
 
+async function generateMenuCourses(prompt: string, guestCount: number): Promise<string[]> {
+  try {
+    const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+    if (!apiKey) {
+      throw new Error('PERPLEXITY_API_KEY is not set')
+    }
+
+    console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}`)
+
+    const requestBody = {
+      model: 'llama-3.1-sonar-large-128k-online',
+      messages: [
+        { 
+          role: 'system', 
+          content: `You are a professional chef that creates elegant menus. You will respond with a simple JSON array of course names.
+          DO NOT include any explanations, just return the JSON array.
+          The array should contain 3-6 course names that would be appropriate for the type of menu requested.
+          DO NOT include numbers or other prefixes in the course names.
+          DO NOT wrap the JSON in markdown code blocks.`
+        },
+        { 
+          role: 'user', 
+          content: `Create a menu with appropriate courses for: ${prompt}. 
+          This menu will serve ${guestCount} people.
+          ONLY respond with a JSON array of course names. For example: ["Appetizer", "Main Course", "Dessert"]` 
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+    }
+
+    console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
+
+    const response = await fetch(PERPLEXITY_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseText = await response.text()
+    console.log('Menu generation raw response:', responseText)
+
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+    }
+
+    let data
+    try {
+      data = JSON.parse(responseText)
+    } catch (error) {
+      console.error('Failed to parse API response:', error)
+      throw new Error(`Invalid JSON response: ${responseText}`)
+    }
+
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('Invalid API response structure')
+    }
+
+    // Clean the response content before parsing
+    const cleanedContent = cleanJsonResponse(data.choices[0].message.content)
+    console.log('Cleaned menu content:', cleanedContent)
+
+    let courses
+    try {
+      courses = JSON.parse(cleanedContent)
+    } catch (error) {
+      console.error('Failed to parse courses JSON:', error)
+      throw new Error(`Invalid courses JSON: ${cleanedContent}`)
+    }
+
+    if (!Array.isArray(courses)) {
+      throw new Error('Courses must be an array')
+    }
+
+    console.log('Generated menu courses:', courses)
+    return courses
+  } catch (error) {
+    console.error('Menu generation error:', error)
+    throw error
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { courseTitle, guestCount, requirements } = await req.json()
+    const body = await req.json()
+    
+    // Check if this is a menu generation request
+    if (body.generateMenu) {
+      console.log('Menu generation request:', body)
+      
+      const { prompt, menuName, guestCount } = body
+      
+      if (!prompt) {
+        throw new Error('Menu prompt is required')
+      }
+      
+      // Use provided guestCount or default to 4
+      const guests = guestCount ? Number(guestCount) : 4
+      
+      // Generate menu courses
+      const courses = await generateMenuCourses(prompt, guests)
+      
+      return new Response(JSON.stringify({ courses }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      })
+    }
+    
+    // Otherwise, handle as a recipe generation request
+    const { courseTitle, guestCount, requirements } = body
     console.log('Generating recipe for:', { courseTitle, guestCount, requirements })
 
-    const prompt = `Create a recipe for ${courseTitle} that serves ${guestCount} people.
+    if (!courseTitle || courseTitle === 'undefined') {
+      throw new Error('Course title is required')
+    }
+    
+    if (!guestCount || isNaN(Number(guestCount))) {
+      throw new Error('Valid guest count is required')
+    }
+
+    const actualGuestCount = Number(guestCount)
+
+    const prompt = `Create a recipe for ${courseTitle} that serves ${actualGuestCount} people.
     ${requirements ? `Additional requirements: ${requirements}` : ''}
 
     YOU MUST RESPOND WITH A SINGLE JSON OBJECT IN THIS EXACT FORMAT:
@@ -155,7 +274,7 @@ serve(async (req) => {
       ],
       "prep_time_minutes": <number between 5 and 180>,
       "cook_time_minutes": <number between 5 and 180>,
-      "servings": ${guestCount}
+      "servings": ${actualGuestCount}
     }
 
     Rules:
@@ -163,14 +282,14 @@ serve(async (req) => {
     2. ALL time values must be numbers (not strings)
     3. prep_time_minutes and cook_time_minutes must be numbers between 5 and 180
     4. ingredients and instructions must be non-empty arrays of strings
-    5. servings must equal ${guestCount}
+    5. servings must equal ${actualGuestCount}
     6. DO NOT include any text outside the JSON object
     7. DO NOT wrap the response in markdown code blocks`
 
     const recipe = await generateRecipeWithRetry(prompt)
 
     // Force servings to match requested guest count
-    recipe.servings = guestCount
+    recipe.servings = actualGuestCount
 
     return new Response(JSON.stringify(recipe), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
