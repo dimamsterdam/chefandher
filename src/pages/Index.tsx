@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2 } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,8 @@ const Index = () => {
     removeCourse,
     reorderCourses,
     generateRecipe,
-    updateCourse 
+    updateCourse,
+    generateMenu
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -28,6 +29,7 @@ const Index = () => {
   const [openRecipe, setOpenRecipe] = useState<string | null>(null);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [generatingMenu, setGeneratingMenu] = useState(false);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -54,6 +56,26 @@ const Index = () => {
       toast.error('Failed to generate recipe. Please try again.');
     } finally {
       setGeneratingFor(null);
+    }
+  };
+
+  const handleGenerateMenu = async () => {
+    if (!name.trim()) {
+      toast.error("Please enter a menu name first");
+      return;
+    }
+    
+    setGeneratingMenu(true);
+    try {
+      await generateMenu(
+        `Create a complete ${name} menu for ${guestCount} guests with ${courses.length > 0 ? 'additional' : ''} courses.`
+      );
+      toast.success("Menu generated successfully!");
+    } catch (error) {
+      console.error('Menu generation failed:', error);
+      toast.error('Failed to generate menu. Please try again.');
+    } finally {
+      setGeneratingMenu(false);
     }
   };
 
@@ -91,13 +113,32 @@ const Index = () => {
           <div className="space-y-6 mb-8">
             <div>
               <label className="block text-sm font-medium mb-2">Menu Name</label>
-              <Input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter menu name"
-                className="max-w-md"
-              />
+              <div className="flex items-center space-x-2 max-w-md">
+                <Input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter menu name"
+                  className="flex-grow"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={!name.trim() || generatingMenu}
+                  onClick={handleGenerateMenu}
+                  className={`transition-colors ${
+                    name.trim() 
+                      ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
+                      : 'text-gray-400 border-gray-200'
+                  }`}
+                >
+                  {generatingMenu ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

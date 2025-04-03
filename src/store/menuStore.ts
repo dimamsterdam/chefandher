@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -38,6 +37,7 @@ interface MenuState {
   updateCourse: (id: string, updates: Partial<Course>) => void;
   reorderCourses: (courses: Course[]) => void;
   generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
+  generateMenu: (prompt: string) => Promise<void>;
   saveMenu: () => Promise<void>;
   reset: () => void;
 }
@@ -89,12 +89,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
 
     try {
-      // Save menu first if not saved
       if (!menuId) {
         await get().saveMenu();
       }
 
-      // Get the latest menu state and course after menu save
       const currentState = get();
       const updatedCourse = currentState.courses.find((c) => c.id === courseId);
       
@@ -104,7 +102,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       }
 
       if (!updatedCourse?.dbId) {
-        // Try to save the menu again to get the course dbId
         await get().saveMenu();
         const retryState = get();
         const retryCourse = retryState.courses.find((c) => c.id === courseId);
@@ -115,7 +112,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         }
       }
 
-      // Get the final course state after all saves
       const finalCourse = get().courses.find((c) => c.id === courseId);
       if (!finalCourse?.dbId) {
         toast.error('Failed to save course. Please try again.');
@@ -169,6 +165,50 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       throw error;
     }
   },
+  generateMenu: async (prompt: string) => {
+    const { user } = useAuthStore.getState();
+    const { menuId, saveMenu, addCourse } = get();
+    
+    if (!user) {
+      toast.error('You must be logged in to generate a menu');
+      return;
+    }
+
+    try {
+      if (!menuId) {
+        await saveMenu();
+      }
+
+      const response = await supabase.functions.invoke('generate-recipe', {
+        body: {
+          generateMenu: true,
+          prompt,
+        },
+      });
+
+      if (response.error) {
+        console.error('Menu generation error:', response.error);
+        throw new Error(response.error.message || 'Failed to generate menu');
+      }
+
+      if (!response.data?.courses || !Array.isArray(response.data.courses)) {
+        throw new Error('No menu data received');
+      }
+
+      response.data.courses.forEach((courseName: string) => {
+        addCourse({
+          title: courseName,
+          order: get().courses.length,
+        });
+      });
+
+      toast.success('Menu generated successfully!');
+    } catch (error: any) {
+      console.error('Menu generation error:', error);
+      toast.error(error.message || 'Failed to generate menu');
+      throw error;
+    }
+  },
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
     const { user } = useAuthStore.getState();
@@ -183,7 +223,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const menuName = name.trim() || 'Untitled';
       
       if (!currentMenuId) {
-        // Create new menu
         const { data: menu, error: menuError } = await supabase
           .from('menus')
           .insert({
@@ -199,7 +238,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         currentMenuId = menu.id;
         set({ menuId: currentMenuId });
       } else {
-        // Update existing menu
         const { error: updateError } = await supabase
           .from('menus')
           .update({
@@ -212,7 +250,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         if (updateError) throw updateError;
       }
 
-      // Delete existing courses and insert new ones
       const { error: deleteError } = await supabase
         .from('courses')
         .delete()
@@ -233,7 +270,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       if (coursesError) throw coursesError;
 
-      // Update local courses with their database IDs
       if (savedCourses) {
         set((state) => ({
           courses: state.courses.map((course, index) => ({
