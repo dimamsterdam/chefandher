@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -9,12 +8,17 @@ const corsHeaders = {
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
 function cleanJsonResponse(response: string): string {
-  // Remove markdown code block syntax if present
+  // First, try to extract a JSON object if it's embedded in text
+  const jsonObjectMatch = response.match(/\{[\s\S]*\}/);
+  if (jsonObjectMatch) {
+    return jsonObjectMatch[0].trim();
+  }
+  
+  // Otherwise, remove markdown code block syntax
   let cleaned = response
-    .replace(/^```json\s*/i, '')  // Remove opening ```json
-    .replace(/^```\s*/i, '')      // Remove opening ``` without json
-    .replace(/```\s*$/i, '')      // Remove closing ```
-    .trim();                       // Remove any extra whitespace
+    .replace(/^```(?:json)?\s*/im, '')  // Remove opening ```json or ``` (case insensitive)
+    .replace(/```\s*$/m, '')            // Remove closing ```
+    .trim();                            // Remove any extra whitespace
   
   return cleaned;
 }
@@ -93,7 +97,24 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         recipe = JSON.parse(cleanedContent)
       } catch (error) {
         console.error('Failed to parse recipe JSON:', error)
-        throw new Error(`Invalid recipe JSON: ${cleanedContent}`)
+        
+        // Last attempt - try to use a more aggressive approach to extract JSON
+        if (attempt === maxRetries) {
+          // Look for the JSON structure within the response
+          const potentialJson = data.choices[0].message.content.match(/(\{[\s\S]*\})/);
+          if (potentialJson) {
+            try {
+              recipe = JSON.parse(potentialJson[0]);
+              console.log(`Successfully extracted JSON on final attempt:`, JSON.stringify(recipe, null, 2));
+            } catch (deepError) {
+              throw new Error(`Could not extract valid JSON: ${cleanedContent}`);
+            }
+          } else {
+            throw new Error(`Invalid recipe JSON: ${cleanedContent}`);
+          }
+        } else {
+          throw error; // Re-throw for retry
+        }
       }
 
       console.log(`Attempt ${attempt + 1} parsed recipe:`, JSON.stringify(recipe, null, 2))
