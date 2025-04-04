@@ -80,13 +80,24 @@ const menuSpecificItems = [
     title: "Settings",
     path: "/",
     icon: Settings,
+    isSettings: true,
   },
 ]
 
 export function AppSidebar() {
   const location = useLocation()
   const { profile, signOut } = useAuthStore()
-  const { menuPlanningComplete, menuId, setName, setGuestCount, setPrepDays, setCourses, setMenuId, setMenuPlanningComplete, reset } = useMenuStore()
+  const { 
+    menuPlanningComplete, 
+    menuId, 
+    setName, 
+    setGuestCount, 
+    setPrepDays, 
+    setCourses, 
+    setMenuId, 
+    setMenuPlanningComplete, 
+    reset 
+  } = useMenuStore()
   const [savedMenus, setSavedMenus] = useState([])
   const [openMenus, setOpenMenus] = useState([])
   const [activeMenuId, setActiveMenuId] = useState(null)
@@ -131,7 +142,7 @@ export function AppSidebar() {
   }
 
   // Handle selecting a menu
-  const handleSelectMenu = async (menu) => {
+  const handleSelectMenu = async (menu, isSettings = false) => {
     setActiveMenuId(menu.id)
     
     // Fetch the courses for this menu
@@ -176,7 +187,11 @@ export function AppSidebar() {
     setGuestCount(menu.guest_count)
     setPrepDays(menu.prep_days)
     setCourses(formattedCourses)
-    setMenuPlanningComplete(true)
+    
+    // Only set menuPlanningComplete to true if not accessing from Settings
+    if (!isSettings) {
+      setMenuPlanningComplete(true)
+    }
   }
 
   // Handle deleting a menu
@@ -213,6 +228,15 @@ export function AppSidebar() {
     } finally {
       setDeleteDialogOpen(false)
       setMenuToDelete(null)
+    }
+  }
+
+  // Handle menu item click
+  const handleMenuItemClick = (menu, item) => {
+    // If this is the Settings menu item, temporarily make the menu editable
+    if (item.isSettings) {
+      setMenuPlanningComplete(false)
+      handleSelectMenu(menu, true)
     }
   }
 
@@ -303,7 +327,6 @@ export function AppSidebar() {
                     <CollapsibleContent>
                       <SidebarMenuSub>
                         {menuSpecificItems.map((item) => {
-                          // The Settings item should always point to the homepage with the menu ID
                           const itemPath = item.title === "Settings" ? "/" : item.path;
                           const isActive = (item.title === "Settings" 
                             ? location.pathname === "/" 
@@ -316,7 +339,11 @@ export function AppSidebar() {
                                 isActive={isActive}
                                 className={`text-sm ${isActive ? 'font-medium' : ''}`}
                               >
-                                <Link to={itemPath} className="flex items-center gap-2">
+                                <Link 
+                                  to={itemPath} 
+                                  className="flex items-center gap-2"
+                                  onClick={() => handleMenuItemClick(menu, item)}
+                                >
                                   <item.icon className={`h-4 w-4 ${isActive ? 'text-purple-600' : 'text-gray-500'}`} />
                                   <span>{item.title}</span>
                                 </Link>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2, Save, AlertTriangle } from "lucide-react";
@@ -135,43 +136,50 @@ const Index = () => {
     setEditingTitle("");
   };
 
-  const handleCompleteMenuPlanning = async () => {
-    if (courses.length === 0) {
-      toast.error("Please add at least one course before completing menu planning");
-      return;
-    }
+  const handleToggleMenuPlanningComplete = async () => {
+    if (!menuPlanningComplete) {
+      // Completing the menu planning
+      if (courses.length === 0) {
+        toast.error("Please add at least one course before completing menu planning");
+        return;
+      }
 
-    if (!name.trim()) {
-      toast.error("Please name your menu before completing menu planning");
-      return;
-    }
+      if (!name.trim()) {
+        toast.error("Please name your menu before completing menu planning");
+        return;
+      }
 
-    if (!courses.every(course => course.recipe)) {
-      toast.warning("Not all courses have recipes generated. Are you sure you want to proceed?", {
-        action: {
-          label: "Confirm",
-          onClick: async () => {
-            try {
-              await saveMenu();
-              setMenuPlanningComplete(true);
-              toast.success("Menu planning completed! You can now access other sections.");
-            } catch (error) {
-              console.error("Error saving menu:", error);
-              toast.error("Failed to save menu. Please try again.");
+      if (!courses.every(course => course.recipe)) {
+        toast.warning("Not all courses have recipes generated. Are you sure you want to proceed?", {
+          action: {
+            label: "Confirm",
+            onClick: async () => {
+              try {
+                await saveMenu();
+                setMenuPlanningComplete(true);
+                toast.success("Menu planning completed! You can now access other sections.");
+              } catch (error) {
+                console.error("Error saving menu:", error);
+                toast.error("Failed to save menu. Please try again.");
+              }
             }
           }
-        }
-      });
-      return;
-    }
+        });
+        return;
+      }
 
-    try {
-      await saveMenu();
-      setMenuPlanningComplete(true);
-      toast.success("Menu planning completed! You can now access other sections.");
-    } catch (error) {
-      console.error("Error saving menu:", error);
-      toast.error("Failed to save menu. Please try again.");
+      try {
+        await saveMenu();
+        setMenuPlanningComplete(true);
+        toast.success("Menu planning completed! You can now access other sections.");
+      } catch (error) {
+        console.error("Error saving menu:", error);
+        toast.error("Failed to save menu. Please try again.");
+      }
+    } else {
+      // If already complete, toggle back to incomplete
+      setMenuPlanningComplete(false);
+      toast.info("Menu planning reopened for editing");
     }
   };
 
@@ -245,7 +253,7 @@ const Index = () => {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">Menu Planning</h1>
             <Button 
-              onClick={handleCompleteMenuPlanning}
+              onClick={handleToggleMenuPlanningComplete}
               variant={menuPlanningComplete ? "outline" : "default"}
               className={menuPlanningComplete ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : ""}
               disabled={courses.length === 0 || !name.trim() || generatingMenu || hasUnsavedChanges}
@@ -253,7 +261,7 @@ const Index = () => {
               {menuPlanningComplete ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2" /> 
-                  Planning Complete
+                  Reopen for Editing
                 </>
               ) : (
                 <>
@@ -274,15 +282,14 @@ const Index = () => {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter menu name"
                   className="flex-grow"
-                  disabled={menuPlanningComplete}
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  disabled={!name.trim() || generatingMenu || menuPlanningComplete}
+                  disabled={!name.trim() || generatingMenu}
                   onClick={handleGenerateMenu}
                   className={`transition-colors ${
-                    name.trim() && !menuPlanningComplete
+                    name.trim()
                       ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
                       : 'text-gray-400 border-gray-200'
                   }`}
@@ -304,7 +311,6 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
-                    disabled={menuPlanningComplete}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
@@ -313,7 +319,6 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setGuestCount(guestCount + 1)}
-                    disabled={menuPlanningComplete}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -327,7 +332,6 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setPrepDays(Math.max(1, prepDays - 1))}
-                    disabled={menuPlanningComplete}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
@@ -336,7 +340,6 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setPrepDays(prepDays + 1)}
-                    disabled={menuPlanningComplete}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -351,20 +354,17 @@ const Index = () => {
             <Reorder.Group 
               axis="y" 
               values={courses} 
-              onReorder={menuPlanningComplete ? undefined : reorderCourses}
+              onReorder={reorderCourses}
               className="space-y-4"
             >
               {courses.map((course) => (
                 <Reorder.Item
                   key={course.id}
                   value={course}
-                  className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
-                  dragListener={!menuPlanningComplete}
+                  className={`flex flex-col p-4 glass rounded-lg cursor-move bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
                 >
                   <div className="flex items-center space-x-4">
-                    {!menuPlanningComplete && (
-                      <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    )}
+                    <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
                     {editingCourseId === course.id ? (
                       <div className="flex-grow flex items-center gap-2">
                         <Input
@@ -397,8 +397,8 @@ const Index = () => {
                       </div>
                     ) : (
                       <span 
-                        className={`flex-grow font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
-                        onClick={() => !menuPlanningComplete && startEditing(course)}
+                        className="flex-grow font-medium hover:text-purple-600 cursor-pointer"
+                        onClick={() => startEditing(course)}
                       >
                         {course.title}
                       </span>
@@ -414,45 +414,41 @@ const Index = () => {
                           <BookOpen className="h-4 w-4" />
                         </Button>
                       )}
-                      {!menuPlanningComplete && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleGenerateRecipe(course.id)}
-                            disabled={!!generatingFor}
-                            className={`relative ${
-                              course.recipe 
-                                ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
-                                : ''
-                            } ${
-                              generatingFor === course.id 
-                                ? 'bg-purple-50' 
-                                : ''
-                            }`}
-                          >
-                            {generatingFor === course.id ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="sr-only">Generating recipe...</span>
-                              </>
-                            ) : course.recipe ? (
-                              <RefreshCw className="h-4 w-4" />
-                            ) : (
-                              <ChefHat className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeCourse(course.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            disabled={generatingFor === course.id}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleGenerateRecipe(course.id)}
+                        disabled={!!generatingFor}
+                        className={`relative ${
+                          course.recipe 
+                            ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
+                            : ''
+                        } ${
+                          generatingFor === course.id 
+                            ? 'bg-purple-50' 
+                            : ''
+                        }`}
+                      >
+                        {generatingFor === course.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="sr-only">Generating recipe...</span>
+                          </>
+                        ) : course.recipe ? (
+                          <RefreshCw className="h-4 w-4" />
+                        ) : (
+                          <ChefHat className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCourse(course.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        disabled={generatingFor === course.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
 
@@ -498,26 +494,24 @@ const Index = () => {
               ))}
             </Reorder.Group>
 
-            {!menuPlanningComplete && (
-              <div className="flex space-x-2">
-                <Input
-                  type="text"
-                  value={newCourseTitle}
-                  onChange={(e) => setNewCourseTitle(e.target.value)}
-                  placeholder="Enter course title"
-                  className="flex-grow"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddCourse();
-                    }
-                  }}
-                />
-                <Button onClick={handleAddCourse}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Course
-                </Button>
-              </div>
-            )}
+            <div className="flex space-x-2">
+              <Input
+                type="text"
+                value={newCourseTitle}
+                onChange={(e) => setNewCourseTitle(e.target.value)}
+                placeholder="Enter course title"
+                className="flex-grow"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddCourse();
+                  }
+                }}
+              />
+              <Button onClick={handleAddCourse}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Course
+              </Button>
+            </div>
           </div>
         </motion.div>
       </div>
