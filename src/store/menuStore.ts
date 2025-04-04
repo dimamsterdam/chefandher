@@ -29,6 +29,7 @@ interface MenuState {
   prepDays: number;
   courses: Course[];
   menuId: string | null;
+  menuPlanningComplete: boolean;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
@@ -39,6 +40,7 @@ interface MenuState {
   generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
   generateMenu: (prompt: string) => Promise<void>;
   saveMenu: () => Promise<void>;
+  setMenuPlanningComplete: (complete: boolean) => void;
   reset: () => void;
 }
 
@@ -48,6 +50,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   guestCount: 1,
   prepDays: 1,
   menuId: null,
+  menuPlanningComplete: false,
   setName: async (name) => {
     set({ name });
     try {
@@ -73,6 +76,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       ),
     })),
   reorderCourses: (courses) => set({ courses }),
+  setMenuPlanningComplete: (complete) => set({ menuPlanningComplete: complete }),
   generateRecipe: async (courseId: string, requirements?: string) => {
     const { courses, guestCount, menuId } = get();
     const { user } = useAuthStore.getState();
@@ -303,5 +307,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     guestCount: 1,
     prepDays: 1,
     menuId: null,
+    menuPlanningComplete: false,
   }),
 }));

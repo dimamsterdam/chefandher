@@ -12,6 +12,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { useAuthStore } from "@/store/authStore"
+import { useMenuStore } from "@/store/menuStore"
 import { 
   ChefHat, 
   ClipboardList, 
@@ -54,6 +55,7 @@ const menuItems = [
 export function AppSidebar() {
   const location = useLocation()
   const { profile, signOut } = useAuthStore()
+  const { menuPlanningComplete } = useMenuStore()
 
   return (
     <Sidebar className="border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
@@ -77,40 +79,60 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.path}
-                    className={`group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
-                      location.pathname === item.path
-                        ? "bg-purple-100 text-purple-900"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    <Link to={item.path} className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded-md transition-colors duration-200 ${
-                        location.pathname === item.path
-                          ? "bg-purple-200"
-                          : "bg-white shadow-sm group-hover:bg-purple-50"
-                      }`}>
-                        <item.icon className={`h-4 w-4 transition-colors duration-200 ${
-                          location.pathname === item.path
-                            ? "text-purple-600"
-                            : "text-gray-600 group-hover:text-purple-600"
-                        }`} />
-                      </div>
-                      <span className={`text-sm font-medium transition-colors duration-200 ${
-                        location.pathname === item.path
-                          ? "text-purple-900"
-                          : "text-gray-700 group-hover:text-purple-900"
-                      }`}>
-                        {item.title}
-                      </span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {menuItems.map((item) => {
+                const isMenusItem = item.path === "/";
+                const isActive = location.pathname === item.path;
+                const isDisabled = !isMenusItem && !menuPlanningComplete;
+                
+                return (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton
+                      asChild={!isDisabled}
+                      isActive={isActive}
+                      className={`group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        isActive
+                          ? "bg-purple-100 text-purple-900"
+                          : isDisabled
+                          ? "opacity-50 cursor-not-allowed pointer-events-none"
+                          : "hover:bg-gray-100"
+                      }`}
+                      aria-disabled={isDisabled}
+                    >
+                      {isDisabled ? (
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 rounded-md bg-gray-100">
+                            <item.icon className="h-4 w-4 text-gray-400" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-400">
+                            {item.title}
+                          </span>
+                        </div>
+                      ) : (
+                        <Link to={item.path} className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-md transition-colors duration-200 ${
+                            isActive
+                              ? "bg-purple-200"
+                              : "bg-white shadow-sm group-hover:bg-purple-50"
+                          }`}>
+                            <item.icon className={`h-4 w-4 transition-colors duration-200 ${
+                              isActive
+                                ? "text-purple-600"
+                                : "text-gray-600 group-hover:text-purple-600"
+                            }`} />
+                          </div>
+                          <span className={`text-sm font-medium transition-colors duration-200 ${
+                            isActive
+                              ? "text-purple-900"
+                              : "text-gray-700 group-hover:text-purple-900"
+                          }`}>
+                            {item.title}
+                          </span>
+                        </Link>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
