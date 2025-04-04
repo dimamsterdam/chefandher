@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -43,8 +42,6 @@ interface MenuState {
   saveMenu: () => Promise<void>;
   setMenuPlanningComplete: (complete: boolean) => void;
   reset: () => void;
-  setCourses: (courses: Course[]) => void;
-  setMenuId: (id: string | null) => void;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -64,8 +61,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
-  setCourses: (courses) => set({ courses }),
-  setMenuId: (id) => set({ menuId: id }),
   addCourse: (course) =>
     set((state) => ({
       courses: [...state.courses, { ...course, id: crypto.randomUUID() }],
