@@ -169,14 +169,21 @@ async function generateMenuCourses(prompt: string, guestCount: number): Promise<
       messages: [
         { 
           role: 'system', 
-          content: `You are a professional chef that creates elegant menus. 
-          You will respond with ONLY a simple JSON array of course names.
+          content: `You are a professional chef that creates elegant, sophisticated menus.
+          You will respond with ONLY a simple JSON array of specific dish names (NOT course types).
           Do not include any markdown, just return the raw JSON array.
-          Example response: ["Appetizer", "Soup", "Main Course", "Dessert"]
-          The array should contain 3-6 course names that would be appropriate for the type of menu requested.
-          Do not include numbers or other prefixes in the course names.
-          Always include at least one dessert at the end of the menu.
-          DO NOT wrap the response in code blocks or any other formatting.`
+          
+          Example response: ["Truffle Risotto with Wild Mushrooms", "Herb-crusted Rack of Lamb", "Chocolate Soufflé with Vanilla Bean Ice Cream"]
+          
+          IMPORTANT GUIDELINES:
+          - Each dish name should be specific, descriptive, and appetizing
+          - Include 3-6 dishes appropriate for the requested menu theme
+          - Do not use generic terms like "Appetizer", "Main Course", or "Dessert"
+          - Always include at least one specific dessert at the end of the menu
+          - Each dish name should be elegant and sophisticated (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" NOT just "Scallops")
+          - Do not include numbers or other prefixes in the dish names
+          - DO NOT wrap the response in code blocks or any other formatting
+          - Make sure the dish names align with the requested menu theme`
         },
         { 
           role: 'user', 

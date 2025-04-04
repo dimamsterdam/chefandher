@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -180,10 +179,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         await saveMenu();
       }
 
-      // Create a more specific prompt based on the menu name
       const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
       The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
-      Make sure to include a good variety of courses, and end with at least one dessert.`;
+      
+      IMPORTANT: Use SPECIFIC dish names, not generic course types. For example:
+      - Instead of "Appetizer", use something like "Garlic Butter Prawns" or "Mushroom Arancini Balls"
+      - Instead of "Main Course", use something like "Pan-seared Salmon with Lemon Butter" or "Braised Short Ribs"
+      - Instead of "Dessert", use something like "Chocolate Soufflé" or "Caramel Panna Cotta"
+      
+      Make sure to include a good variety of dishes (3-6 total), and end with at least one specific dessert.
+      Each dish name should be descriptive and appetizing.`;
 
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
