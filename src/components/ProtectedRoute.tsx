@@ -1,11 +1,12 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, setUser, setProfile, isLoading, setIsLoading } = useAuthStore();
+  const [authChecked, setAuthChecked] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,6 +36,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         navigate('/auth');
       } finally {
         setIsLoading(false);
+        setAuthChecked(true);
       }
     };
 
@@ -63,7 +65,20 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     };
   }, [navigate, setUser, setProfile, setIsLoading]);
 
-  if (isLoading) {
+  // Add a timeout to prevent infinite loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        console.log("Authentication check timed out");
+        setIsLoading(false);
+        navigate('/auth');
+      }
+    }, 5000); // 5 seconds timeout
+
+    return () => clearTimeout(timer);
+  }, [isLoading, navigate, setIsLoading]);
+
+  if (isLoading && !authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
