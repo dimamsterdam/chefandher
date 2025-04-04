@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -9,10 +10,13 @@ const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
 function cleanJsonResponse(response: string): string {
   // Remove markdown code block syntax if present
-  return response
-    .replace(/^```json\s*/, '')  // Remove opening ```json
-    .replace(/```\s*$/, '')      // Remove closing ```
-    .trim();                     // Remove any extra whitespace
+  let cleaned = response
+    .replace(/^```json\s*/i, '')  // Remove opening ```json
+    .replace(/^```\s*/i, '')      // Remove opening ``` without json
+    .replace(/```\s*$/i, '')      // Remove closing ```
+    .trim();                       // Remove any extra whitespace
+  
+  return cleaned;
 }
 
 async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<any> {
@@ -143,11 +147,13 @@ async function generateMenuCourses(prompt: string, guestCount: number): Promise<
       messages: [
         { 
           role: 'system', 
-          content: `You are a professional chef that creates elegant menus. You will respond with a simple JSON array of course names.
-          DO NOT include any explanations, just return the JSON array.
+          content: `You are a professional chef that creates elegant menus. 
+          You will respond with ONLY a simple JSON array of course names.
+          Do not include any markdown, just return the raw JSON array.
+          Example response: ["Appetizer", "Soup", "Main Course", "Dessert"]
           The array should contain 3-6 course names that would be appropriate for the type of menu requested.
-          DO NOT include numbers or other prefixes in the course names.
-          DO NOT wrap the JSON in markdown code blocks.`
+          Do not include numbers or other prefixes in the course names.
+          DO NOT wrap the response in code blocks or any other formatting.`
         },
         { 
           role: 'user', 
@@ -198,8 +204,22 @@ async function generateMenuCourses(prompt: string, guestCount: number): Promise<
     try {
       courses = JSON.parse(cleanedContent)
     } catch (error) {
-      console.error('Failed to parse courses JSON:', error)
-      throw new Error(`Invalid courses JSON: ${cleanedContent}`)
+      // If parsing fails, try to extract the array from the text
+      console.error('Failed to parse courses JSON, trying to extract array:', error)
+      
+      // Handle the case where the response contains text that's not just the JSON array
+      const arrayMatch = cleanedContent.match(/\[.*\]/s);
+      if (arrayMatch) {
+        try {
+          courses = JSON.parse(arrayMatch[0]);
+          console.log('Extracted array from text:', courses);
+        } catch (extractError) {
+          console.error('Failed to extract array:', extractError);
+          throw new Error(`Could not parse courses from response: ${cleanedContent}`);
+        }
+      } else {
+        throw new Error(`Could not find array in response: ${cleanedContent}`);
+      }
     }
 
     if (!Array.isArray(courses)) {

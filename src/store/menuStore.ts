@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -46,7 +45,7 @@ interface MenuState {
 export const useMenuStore = create<MenuState>((set, get) => ({
   name: '',
   courses: [],
-  guestCount:.1,
+  guestCount: 1,
   prepDays: 1,
   menuId: null,
   setName: async (name) => {
