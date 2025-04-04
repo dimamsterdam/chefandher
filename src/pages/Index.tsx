@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
@@ -22,7 +23,8 @@ const Index = () => {
     updateCourse,
     generateMenu,
     menuPlanningComplete,
-    setMenuPlanningComplete
+    setMenuPlanningComplete,
+    saveMenu
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");

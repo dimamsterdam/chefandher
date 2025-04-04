@@ -128,7 +128,9 @@ export function AppSidebar() {
           instructions,
           prep_time_minutes,
           cook_time_minutes,
-          servings
+          servings,
+          course_id,
+          created_by
         )
       `)
       .eq('menu_id', menu.id)
