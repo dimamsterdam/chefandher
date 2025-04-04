@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, setUser, setProfile, isLoading, setIsLoading } = useAuthStore();
   const navigate = useNavigate();
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -35,8 +36,19 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         navigate('/auth');
       } finally {
         setIsLoading(false);
+        setAuthChecked(true);
       }
     };
+
+    // Add a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.log("Auth check timeout - forcing completion");
+        setIsLoading(false);
+        setAuthChecked(true);
+        if (!user) navigate('/auth');
+      }
+    }, 5000); // 5 seconds timeout
 
     fetchUser();
 
@@ -50,6 +62,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           .eq('id', session.user.id)
           .single();
         setProfile(profile);
+        setAuthChecked(true);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
@@ -57,13 +70,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
-    // Cleanup subscription on unmount
+    // Cleanup subscription and timeout on unmount
     return () => {
       subscription.unsubscribe();
+      clearTimeout(timeoutId);
     };
-  }, [navigate, setUser, setProfile, setIsLoading]);
+  }, [navigate, setUser, setProfile, setIsLoading, user]);
 
-  if (isLoading) {
+  if (isLoading && !authChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
