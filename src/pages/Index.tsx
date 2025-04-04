@@ -68,7 +68,6 @@ const Index = () => {
     
     setGeneratingMenu(true);
     try {
-      // Create a prompt based on the menu name
       const prompt = `Create a complete ${name} menu for ${guestCount} guests that specifically focuses on the theme of ${name}.`;
       await generateMenu(prompt);
       toast.success("Menu generated successfully!");
@@ -99,7 +98,7 @@ const Index = () => {
     setEditingTitle("");
   };
 
-  const handleCompleteMenuPlanning = () => {
+  const handleCompleteMenuPlanning = async () => {
     if (courses.length === 0) {
       toast.error("Please add at least one course before completing menu planning");
       return;
@@ -114,17 +113,29 @@ const Index = () => {
       toast.warning("Not all courses have recipes generated. Are you sure you want to proceed?", {
         action: {
           label: "Confirm",
-          onClick: () => {
-            setMenuPlanningComplete(true);
-            toast.success("Menu planning completed! You can now access other sections.");
+          onClick: async () => {
+            try {
+              await saveMenu();
+              setMenuPlanningComplete(true);
+              toast.success("Menu planning completed! You can now access other sections.");
+            } catch (error) {
+              console.error("Error saving menu:", error);
+              toast.error("Failed to save menu. Please try again.");
+            }
           }
         }
       });
       return;
     }
 
-    setMenuPlanningComplete(true);
-    toast.success("Menu planning completed! You can now access other sections.");
+    try {
+      await saveMenu();
+      setMenuPlanningComplete(true);
+      toast.success("Menu planning completed! You can now access other sections.");
+    } catch (error) {
+      console.error("Error saving menu:", error);
+      toast.error("Failed to save menu. Please try again.");
+    }
   };
 
   return (
