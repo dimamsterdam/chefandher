@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -174,13 +175,12 @@ async function generateMenuCourses(prompt: string, guestCount: number): Promise<
           Example response: ["Appetizer", "Soup", "Main Course", "Dessert"]
           The array should contain 3-6 course names that would be appropriate for the type of menu requested.
           Do not include numbers or other prefixes in the course names.
+          Always include at least one dessert at the end of the menu.
           DO NOT wrap the response in code blocks or any other formatting.`
         },
         { 
           role: 'user', 
-          content: `Create a menu with appropriate courses for: ${prompt}. 
-          This menu will serve ${guestCount} people.
-          ONLY respond with a JSON array of course names. For example: ["Appetizer", "Main Course", "Dessert"]` 
+          content: prompt
         }
       ],
       temperature: 0.7,

@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -179,10 +180,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         await saveMenu();
       }
 
+      // Create a more specific prompt based on the menu name
+      const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
+      The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
+      Make sure to include a good variety of courses, and end with at least one dessert.`;
+
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
           generateMenu: true,
-          prompt,
+          prompt: menuThemePrompt,
           menuName: name,
           guestCount: guestCount
         },

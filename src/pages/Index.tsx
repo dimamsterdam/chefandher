@@ -67,9 +67,9 @@ const Index = () => {
     
     setGeneratingMenu(true);
     try {
-      await generateMenu(
-        `Create a complete ${name} menu for ${guestCount} guests with ${courses.length > 0 ? 'additional' : ''} courses.`
-      );
+      // Create a prompt based on the menu name
+      const prompt = `Create a complete ${name} menu for ${guestCount} guests that specifically focuses on the theme of ${name}.`;
+      await generateMenu(prompt);
       toast.success("Menu generated successfully!");
     } catch (error) {
       console.error('Menu generation failed:', error);
