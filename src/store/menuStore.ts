@@ -183,15 +183,23 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         await saveMenu();
       }
 
+      let courseCount = 3; // Default
+      const match = prompt.match(/approximately\s+(\d+)\s+courses/i);
+      if (match && match[1]) {
+        courseCount = parseInt(match[1], 10);
+      }
+
       const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
       The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
       
-      IMPORTANT: Use SPECIFIC dish names, not generic course types. For example:
-      - Instead of "Appetizer", use something like "Garlic Butter Prawns" or "Mushroom Arancini Balls"
-      - Instead of "Main Course", use something like "Pan-seared Salmon with Lemon Butter" or "Braised Short Ribs"
-      - Instead of "Dessert", use something like "Chocolate Soufflé" or "Caramel Panna Cotta"
+      IMPORTANT: 
+      - Use SPECIFIC dish names, not generic course types
+      - Include exactly ${courseCount} dishes total
+      - For example:
+        - Instead of "Appetizer", use something like "Garlic Butter Prawns" or "Mushroom Arancini Balls"
+        - Instead of "Main Course", use something like "Pan-seared Salmon with Lemon Butter" or "Braised Short Ribs"
+        - Instead of "Dessert", use something like "Chocolate Soufflé" or "Caramel Panna Cotta"
       
-      Make sure to include a good variety of dishes (3-6 total), and end with at least one specific dessert.
       Each dish name should be descriptive and appetizing.`;
 
       const response = await supabase.functions.invoke('generate-recipe', {

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
@@ -31,6 +32,7 @@ const Index = () => {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
+  const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -69,7 +71,7 @@ const Index = () => {
     setGeneratingMenu(true);
     try {
       // Create a prompt based on the menu name
-      const prompt = `Create a complete ${name} menu for ${guestCount} guests that specifically focuses on the theme of ${name}.`;
+      const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
       await generateMenu(prompt);
       toast.success("Menu generated successfully!");
     } catch (error) {
@@ -191,7 +193,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium mb-2">Number of Guests</label>
                 <div className="flex items-center space-x-2">
@@ -208,6 +210,29 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setGuestCount(guestCount + 1)}
+                    disabled={menuPlanningComplete}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">How many courses</label>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setDesiredCourseCount(Math.max(1, desiredCourseCount - 1))}
+                    disabled={menuPlanningComplete}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-[3rem] text-center">{desiredCourseCount}</span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setDesiredCourseCount(desiredCourseCount + 1)}
                     disabled={menuPlanningComplete}
                   >
                     <Plus className="h-4 w-4" />
