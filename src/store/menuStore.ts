@@ -2,7 +2,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useAuthStore } from './authStore';
 
 interface Recipe {
   id?: string;
@@ -28,12 +27,14 @@ interface MenuState {
   name: string;
   guestCount: number;
   prepDays: number;
+  courseCount: number; // Added courseCount state
   courses: Course[];
   menuId: string | null;
   menuPlanningComplete: boolean;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
+  setCourseCount: (count: number) => void; // Added setCourseCount method
   addCourse: (course: Omit<Course, 'id'>) => void;
   removeCourse: (id: string) => void;
   updateCourse: (id: string, updates: Partial<Course>) => void;
@@ -50,6 +51,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   courses: [],
   guestCount: 1,
   prepDays: 1,
+  courseCount: 3, // Default course count
   menuId: null,
   menuPlanningComplete: false,
   setName: async (name) => {
@@ -62,6 +64,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
+  setCourseCount: (count) => set({ courseCount: count }), // Implement setCourseCount method
   addCourse: (course) =>
     set((state) => ({
       courses: [...state.courses, { ...course, id: crypto.randomUUID() }],
@@ -80,7 +83,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   setMenuPlanningComplete: (complete) => set({ menuPlanningComplete: complete }),
   generateRecipe: async (courseId: string, requirements?: string) => {
     const { courses, guestCount, menuId } = get();
-    const { user } = useAuthStore.getState();
     const course = courses.find((c) => c.id === courseId);
     
     if (!course) {
@@ -88,7 +90,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
-    if (!user) {
+    // Get the current user session inside the async function instead of using the store directly
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    if (!userId) {
       toast.error('You must be logged in to generate recipes');
       return;
     }
@@ -142,7 +148,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       const recipe: Recipe = {
         course_id: finalCourse.dbId,
-        created_by: user.id,
+        created_by: userId,
         ...response.data,
       };
 
@@ -171,10 +177,13 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   generateMenu: async (prompt: string) => {
-    const { user } = useAuthStore.getState();
-    const { menuId, saveMenu, addCourse, name, guestCount } = get();
+    // Get the current user session inside the async function instead of using the store directly
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
     
-    if (!user) {
+    const { menuId, saveMenu, addCourse, name, guestCount, courseCount } = get();
+    
+    if (!userId) {
       toast.error('You must be logged in to generate a menu');
       return;
     }
@@ -182,13 +191,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     try {
       if (!menuId) {
         await saveMenu();
-      }
-
-      // Extract course count from the prompt
-      let courseCount = 3; // Default
-      const match = prompt.match(/approximately\s+(\d+)\s+courses/i);
-      if (match && match[1]) {
-        courseCount = parseInt(match[1], 10);
       }
 
       const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
@@ -210,7 +212,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           prompt: menuThemePrompt,
           menuName: name,
           guestCount: guestCount,
-          courseCount: courseCount // Explicitly pass the courseCount parameter
+          courseCount: courseCount
         },
       });
 
@@ -239,9 +241,12 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
-    const { user } = useAuthStore.getState();
     
-    if (!user) {
+    // Get the current user session inside the async function instead of using the store directly
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    
+    if (!userId) {
       toast.error('You must be logged in to save a menu');
       return;
     }
@@ -257,7 +262,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             name: menuName,
             guest_count: guestCount,
             prep_days: prepDays,
-            user_id: user.id
+            user_id: userId
           })
           .select()
           .single();
@@ -317,6 +322,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     courses: [],
     guestCount: 1,
     prepDays: 1,
+    courseCount: 3,
     menuId: null,
     menuPlanningComplete: false,
   }),
