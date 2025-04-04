@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -155,14 +154,14 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   throw lastError || new Error('Failed to generate recipe after all retries')
 }
 
-async function generateMenuCourses(prompt: string, guestCount: number): Promise<string[]> {
+async function generateMenuCourses(prompt: string, guestCount: number, courseCount: number): Promise<string[]> {
   try {
     const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
     if (!apiKey) {
       throw new Error('PERPLEXITY_API_KEY is not set')
     }
 
-    console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}`)
+    console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
     const requestBody = {
       model: 'llama-3.1-sonar-large-128k-online',
@@ -177,7 +176,7 @@ async function generateMenuCourses(prompt: string, guestCount: number): Promise<
           
           IMPORTANT GUIDELINES:
           - Each dish name should be specific, descriptive, and appetizing
-          - Include 3-6 dishes appropriate for the requested menu theme
+          - Include EXACTLY ${courseCount} dishes appropriate for the requested menu theme
           - Do not use generic terms like "Appetizer", "Main Course", or "Dessert"
           - Always include at least one specific dessert at the end of the menu
           - Each dish name should be elegant and sophisticated (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" NOT just "Scallops")
@@ -274,7 +273,7 @@ serve(async (req) => {
     if (body.generateMenu) {
       console.log('Menu generation request:', body)
       
-      const { prompt, menuName, guestCount } = body
+      const { prompt, menuName, guestCount, courseCount } = body
       
       if (!prompt) {
         throw new Error('Menu prompt is required')
@@ -283,10 +282,13 @@ serve(async (req) => {
       // Use provided guestCount or default to 4
       const guests = guestCount ? Number(guestCount) : 4
       
-      // Generate menu courses
-      const courses = await generateMenuCourses(prompt, guests)
+      // Use provided courseCount or default to 3
+      const courses = courseCount ? Number(courseCount) : 3
       
-      return new Response(JSON.stringify({ courses }), {
+      // Generate menu courses
+      const menuCourses = await generateMenuCourses(prompt, guests, courses)
+      
+      return new Response(JSON.stringify({ courses: menuCourses }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       })

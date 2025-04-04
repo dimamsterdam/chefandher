@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -183,6 +184,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         await saveMenu();
       }
 
+      // Extract course count from the prompt
       let courseCount = 3; // Default
       const match = prompt.match(/approximately\s+(\d+)\s+courses/i);
       if (match && match[1]) {
@@ -207,7 +209,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           generateMenu: true,
           prompt: menuThemePrompt,
           menuName: name,
-          guestCount: guestCount
+          guestCount: guestCount,
+          courseCount: courseCount // Explicitly pass the courseCount parameter
         },
       });
 
