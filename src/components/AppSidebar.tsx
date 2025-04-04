@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Settings,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { useEffect, useState } from "react"
@@ -74,6 +75,11 @@ const menuSpecificItems = [
     title: "Service",
     path: "/service",
     icon: ClipboardList,
+  },
+  {
+    title: "Settings",
+    path: "/",
+    icon: Settings,
   },
 ]
 
@@ -297,7 +303,12 @@ export function AppSidebar() {
                     <CollapsibleContent>
                       <SidebarMenuSub>
                         {menuSpecificItems.map((item) => {
-                          const isActive = location.pathname === item.path && activeMenuId === menu.id;
+                          // The Settings item should always point to the homepage with the menu ID
+                          const itemPath = item.title === "Settings" ? "/" : item.path;
+                          const isActive = (item.title === "Settings" 
+                            ? location.pathname === "/" 
+                            : location.pathname === item.path) && activeMenuId === menu.id;
+                          
                           return (
                             <SidebarMenuSubItem key={`${menu.id}-${item.path}`}>
                               <SidebarMenuSubButton
@@ -305,7 +316,7 @@ export function AppSidebar() {
                                 isActive={isActive}
                                 className={`text-sm ${isActive ? 'font-medium' : ''}`}
                               >
-                                <Link to={item.path} className="flex items-center gap-2">
+                                <Link to={itemPath} className="flex items-center gap-2">
                                   <item.icon className={`h-4 w-4 ${isActive ? 'text-purple-600' : 'text-gray-500'}`} />
                                   <span>{item.title}</span>
                                 </Link>

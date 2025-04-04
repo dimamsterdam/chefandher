@@ -1,7 +1,6 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2, Save, AlertTriangle } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,8 @@ const Index = () => {
     generateMenu,
     menuPlanningComplete,
     setMenuPlanningComplete,
-    saveMenu
+    saveMenu,
+    menuId
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -33,6 +33,41 @@ const Index = () => {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
+  
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [initialState, setInitialState] = useState({
+    name: "",
+    guestCount: 0,
+    prepDays: 0,
+    courses: []
+  });
+
+  useEffect(() => {
+    if (menuId) {
+      setInitialState({
+        name,
+        guestCount,
+        prepDays,
+        courses: JSON.parse(JSON.stringify(courses))
+      });
+      setHasUnsavedChanges(false);
+    }
+  }, [menuId, menuPlanningComplete]);
+
+  useEffect(() => {
+    if (!menuId) return;
+    
+    const nameChanged = name !== initialState.name;
+    const guestCountChanged = guestCount !== initialState.guestCount;
+    const prepDaysChanged = prepDays !== initialState.prepDays;
+    
+    const coursesChanged = courses.length !== initialState.courses.length ||
+      courses.some((course, index) => 
+        index >= initialState.courses.length || 
+        course.title !== initialState.courses[index].title);
+    
+    setHasUnsavedChanges(nameChanged || guestCountChanged || prepDaysChanged || coursesChanged);
+  }, [name, guestCount, prepDays, courses, menuId]);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -140,8 +175,66 @@ const Index = () => {
     }
   };
 
+  const handleSaveChanges = async () => {
+    try {
+      await saveMenu();
+      setInitialState({
+        name,
+        guestCount,
+        prepDays,
+        courses: JSON.parse(JSON.stringify(courses))
+      });
+      setHasUnsavedChanges(false);
+      toast.success("Menu saved successfully");
+    } catch (error) {
+      console.error("Error saving menu:", error);
+      toast.error("Failed to save menu changes");
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setName(initialState.name);
+    setGuestCount(initialState.guestCount);
+    setPrepDays(initialState.prepDays);
+    
+    reorderCourses(initialState.courses);
+    
+    setHasUnsavedChanges(false);
+    toast.info("Changes discarded");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+      {hasUnsavedChanges && (
+        <div className="sticky top-0 z-10 bg-amber-50 border-b border-amber-200 p-2 shadow-sm">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="h-5 w-5" />
+              <span>You have unsaved changes to this menu</span>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleDiscardChanges}
+                className="border-amber-300 text-amber-700 hover:bg-amber-100"
+              >
+                Discard
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleSaveChanges}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="container mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -155,7 +248,7 @@ const Index = () => {
               onClick={handleCompleteMenuPlanning}
               variant={menuPlanningComplete ? "outline" : "default"}
               className={menuPlanningComplete ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : ""}
-              disabled={courses.length === 0 || !name.trim() || generatingMenu}
+              disabled={courses.length === 0 || !name.trim() || generatingMenu || hasUnsavedChanges}
             >
               {menuPlanningComplete ? (
                 <>
@@ -171,7 +264,6 @@ const Index = () => {
             </Button>
           </div>
           
-          {/* Menu Details */}
           <div className="space-y-6 mb-8">
             <div>
               <label className="block text-sm font-medium mb-2">Menu Name</label>
@@ -253,7 +345,6 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Courses */}
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Courses</h2>
             
