@@ -26,11 +26,23 @@ import {
   User,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { supabase } from "@/integrations/supabase/client"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "./ui/alert-dialog"
+import { toast } from "sonner"
 
 // Fixed menu items
 const navigationItems = [
@@ -68,38 +80,40 @@ const menuSpecificItems = [
 export function AppSidebar() {
   const location = useLocation()
   const { profile, signOut } = useAuthStore()
-  const { menuPlanningComplete, menuId, setName, setGuestCount, setPrepDays, setCourses, setMenuId, setMenuPlanningComplete } = useMenuStore()
+  const { menuPlanningComplete, menuId, setName, setGuestCount, setPrepDays, setCourses, setMenuId, setMenuPlanningComplete, reset } = useMenuStore()
   const [savedMenus, setSavedMenus] = useState([])
   const [openMenus, setOpenMenus] = useState([])
   const [activeMenuId, setActiveMenuId] = useState(null)
+  const [menuToDelete, setMenuToDelete] = useState(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // Fetch saved menus when the component mounts
   useEffect(() => {
-    const fetchSavedMenus = async () => {
-      const { data: menus, error } = await supabase
-        .from('menus')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error fetching menus:', error)
-        return
-      }
-
-      setSavedMenus(menus || [])
-      
-      // If there's a current menuId, set it as active
-      if (menuId) {
-        setActiveMenuId(menuId)
-        setOpenMenus([menuId])
-      } else if (menus && menus.length > 0) {
-        // If no active menu but we have saved menus, set the first one as open
-        setOpenMenus([menus[0].id])
-      }
-    }
-
     fetchSavedMenus()
   }, [menuId])
+
+  const fetchSavedMenus = async () => {
+    const { data: menus, error } = await supabase
+      .from('menus')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching menus:', error)
+      return
+    }
+
+    setSavedMenus(menus || [])
+    
+    // If there's a current menuId, set it as active
+    if (menuId) {
+      setActiveMenuId(menuId)
+      setOpenMenus([menuId])
+    } else if (menus && menus.length > 0) {
+      // If no active menu but we have saved menus, set the first one as open
+      setOpenMenus([menus[0].id])
+    }
+  }
 
   // Handle toggling a menu's open/closed state
   const toggleMenuOpen = (menuId) => {
@@ -159,6 +173,43 @@ export function AppSidebar() {
     setMenuPlanningComplete(true)
   }
 
+  // Handle deleting a menu
+  const handleDeleteClick = (e, menu) => {
+    e.stopPropagation() // Prevent triggering the menu selection
+    setMenuToDelete(menu)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteMenu = async () => {
+    if (!menuToDelete) return
+    
+    try {
+      // Delete the menu from the database
+      const { error } = await supabase
+        .from('menus')
+        .delete()
+        .eq('id', menuToDelete.id)
+      
+      if (error) throw error
+
+      // If the deleted menu was the active one, reset the store
+      if (activeMenuId === menuToDelete.id) {
+        reset()
+        setActiveMenuId(null)
+      }
+      
+      // Refresh the menus list
+      fetchSavedMenus()
+      toast.success(`Menu "${menuToDelete.name}" deleted successfully`)
+    } catch (error) {
+      console.error('Error deleting menu:', error)
+      toast.error('Failed to delete menu')
+    } finally {
+      setDeleteDialogOpen(false)
+      setMenuToDelete(null)
+    }
+  }
+
   return (
     <Sidebar className="border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
       <SidebarHeader>
@@ -212,7 +263,7 @@ export function AppSidebar() {
                     <CollapsibleTrigger className="w-full">
                       <div 
                         onClick={() => handleSelectMenu(menu)}
-                        className={`flex items-center justify-between w-full mx-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer ${
+                        className={`flex items-center justify-between w-full mx-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer group ${
                           activeMenuId === menu.id
                             ? "bg-purple-100 text-purple-900"
                             : "hover:bg-gray-100"
@@ -226,11 +277,20 @@ export function AppSidebar() {
                             {menu.name}
                           </span>
                         </div>
-                        {openMenus.includes(menu.id) ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
+                        <div className="flex items-center">
+                          <button 
+                            onClick={(e) => handleDeleteClick(e, menu)}
+                            className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-100"
+                            aria-label="Delete menu"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-gray-500 hover:text-red-600" />
+                          </button>
+                          {openMenus.includes(menu.id) ? (
+                            <ChevronDown className="h-4 w-4 ml-1" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          )}
+                        </div>
                       </div>
                     </CollapsibleTrigger>
                     
@@ -283,6 +343,25 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarFooter>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the menu "{menuToDelete?.name}" and all its associated courses and recipes. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteMenu} className="bg-red-600 hover:bg-red-700 text-white">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   )
 }
