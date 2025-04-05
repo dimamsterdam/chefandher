@@ -34,6 +34,8 @@ interface MenuState {
   isGeneratingMenu: boolean;
   isGeneratingRecipe: string | null;
   generateError: string | null;
+  isRetrying: boolean;
+  retryCount: number;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
@@ -50,7 +52,9 @@ interface MenuState {
   clearGenerateError: () => void;
 }
 
+const MAX_RETRIES = 3;
 const FUNCTION_TIMEOUT = 60000; // 60 seconds timeout
+const SAVE_MENU_TIMEOUT = 15000; // 15 seconds timeout
 
 // Helper function to add timeout to promises
 const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
@@ -71,6 +75,36 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): 
   });
 };
 
+// Generic retry function for API calls
+async function retryOperation<T>(
+  operation: () => Promise<T>, 
+  maxRetries: number = MAX_RETRIES,
+  retryDelay: number = 1000,
+  operationName: string = 'Operation'
+): Promise<T> {
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`${operationName}: Attempt ${attempt + 1} of ${maxRetries}`);
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`${operationName} failed (attempt ${attempt + 1}/${maxRetries}):`, error);
+      
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff with jitter
+        const jitter = Math.random() * 300;
+        const delay = retryDelay * Math.pow(1.5, attempt) + jitter;
+        console.log(`Retrying in ${Math.round(delay / 1000)} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`);
+}
+
 export const useMenuStore = create<MenuState>((set, get) => ({
   name: '',
   courses: [],
@@ -82,6 +116,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   isGeneratingMenu: false,
   isGeneratingRecipe: null,
   generateError: null,
+  isRetrying: false,
+  retryCount: 0,
   
   clearGenerateError: () => set({ generateError: null }),
   
@@ -91,6 +127,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       await get().saveMenu();
     } catch (error) {
       console.error('Failed to save menu name:', error);
+      // Don't show toast here as saveMenu already handles it
     }
   },
   
@@ -132,7 +169,13 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     set({ isGeneratingRecipe: courseId, generateError: null });
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // Verify user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        throw new Error(`Authentication error: ${sessionError.message}`);
+      }
+      
       const userId = session?.user?.id;
 
       if (!userId) {
@@ -141,8 +184,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return;
       }
 
+      // Ensure we have a valid menuId
       if (!menuId) {
-        await get().saveMenu();
+        await retryOperation(
+          () => get().saveMenu(), 
+          MAX_RETRIES, 
+          1000, 
+          'Save menu before recipe generation'
+        );
       }
 
       const currentState = get();
@@ -154,8 +203,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return;
       }
 
+      // Make sure course is properly saved with a dbId
       if (!updatedCourse?.dbId) {
-        await get().saveMenu();
+        await retryOperation(
+          () => get().saveMenu(),
+          MAX_RETRIES,
+          1000,
+          'Save course before recipe generation'
+        );
+        
         const retryState = get();
         const retryCourse = retryState.courses.find((c) => c.id === courseId);
         
@@ -203,16 +259,28 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         ...response.data,
       };
 
-      const { data: savedRecipe, error: saveError } = await supabase
-        .from('recipes')
-        .insert(recipe)
-        .select()
-        .single();
+      // Save the recipe to the database
+      const saveRecipeOperation = async () => {
+        const { data: savedRecipe, error: saveError } = await supabase
+          .from('recipes')
+          .insert(recipe)
+          .select()
+          .single();
 
-      if (saveError) {
-        console.error('Recipe save error:', saveError);
-        throw new Error('Failed to save recipe');
-      }
+        if (saveError) {
+          console.error('Recipe save error:', saveError);
+          throw new Error(`Failed to save recipe: ${saveError.message}`);
+        }
+
+        return savedRecipe;
+      };
+
+      const savedRecipe = await retryOperation(
+        saveRecipeOperation,
+        MAX_RETRIES,
+        1000,
+        'Save recipe to database'
+      );
 
       set((state) => ({
         courses: state.courses.map((c) =>
@@ -241,26 +309,41 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     
     // Set the generating state
-    set({ isGeneratingMenu: true, generateError: null });
+    set({ 
+      isGeneratingMenu: true, 
+      generateError: null,
+      isRetrying: false,
+      retryCount: 0
+    });
     
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    
-    const { saveMenu, addCourse, name, guestCount, courseCount, reset } = get();
-    
-    if (!userId) {
-      toast.error('You must be logged in to generate a menu');
-      set({ isGeneratingMenu: false });
-      return;
-    }
-
     try {
-      set({ menuId: null });
+      // Check for user session
+      const sessionCheck = async () => {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw new Error(`Authentication error: ${error.message}`);
+        return session?.user?.id;
+      };
+      
+      const userId = await retryOperation(sessionCheck, 3, 1000, 'Authentication check');
+      
+      if (!userId) {
+        toast.error('You must be logged in to generate a menu');
+        set({ isGeneratingMenu: false });
+        return;
+      }
+
+      const { saveMenu, addCourse, name, guestCount, courseCount, reset } = get();
       
       // Clear existing courses before generating new menu
       reset();
       
-      await saveMenu();
+      // Save the empty menu first to get a menuId
+      await retryOperation(
+        () => saveMenu(),
+        MAX_RETRIES,
+        1000,
+        'Save empty menu before generation'
+      );
 
       const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
       The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
@@ -275,38 +358,55 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       
       Each dish name should be descriptive and appetizing.`;
 
-      const functionPromise = supabase.functions.invoke('generate-recipe', {
-        body: {
-          generateMenu: true,
-          prompt: menuThemePrompt,
-          menuName: name,
-          guestCount: guestCount,
-          courseCount: courseCount
-        }
-      });
+      const generateMenuOperation = async () => {
+        const functionPromise = supabase.functions.invoke('generate-recipe', {
+          body: {
+            generateMenu: true,
+            prompt: menuThemePrompt,
+            menuName: name,
+            guestCount: guestCount,
+            courseCount: courseCount
+          }
+        });
+        
+        // Add timeout to prevent hanging requests
+        return withTimeout(
+          functionPromise,
+          FUNCTION_TIMEOUT,
+          'Menu generation timed out. Please try again later.'
+        );
+      };
 
-      // Add timeout to the function call
-      const response = await withTimeout(
-        functionPromise,
-        FUNCTION_TIMEOUT,
-        'Menu generation timed out. Please try again later.'
+      const response = await retryOperation(
+        generateMenuOperation,
+        MAX_RETRIES,
+        1500,
+        'Menu generation'
       );
 
       if (response.error) {
-        console.error('Menu generation error:', response.error);
         throw new Error(response.error.message || 'Failed to generate menu');
       }
 
       if (!response.data?.courses || !Array.isArray(response.data.courses)) {
-        throw new Error('No menu data received');
+        throw new Error('Invalid menu data received');
       }
 
-      response.data.courses.forEach((courseName: string) => {
+      // Add the generated courses
+      response.data.courses.forEach((courseName: string, index: number) => {
         addCourse({
           title: courseName,
-          order: get().courses.length,
+          order: index,
         });
       });
+
+      // Save the menu with the new courses
+      await retryOperation(
+        () => saveMenu(),
+        MAX_RETRIES,
+        1000,
+        'Save menu with generated courses'
+      );
 
       toast.success('Menu generated successfully!');
     } catch (error: any) {
@@ -324,73 +424,124 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
     
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    
-    if (!userId) {
-      toast.error('You must be logged in to save a menu');
-      return;
-    }
-    
     try {
+      // Check for user session
+      const sessionCheck = async () => {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw new Error(`Authentication error: ${error.message}`);
+        return session?.user?.id;
+      };
+      
+      const userId = await retryOperation(sessionCheck, 2, 500, 'Authentication check for save');
+      
+      if (!userId) {
+        toast.error('You must be logged in to save a menu');
+        return;
+      }
+      
+      // Use a timeout to prevent hanging requests
       let currentMenuId = menuId;
       const menuName = name.trim() || 'Untitled';
       
+      // Create or update menu
       if (!currentMenuId) {
-        const { data: menu, error: menuError } = await supabase
-          .from('menus')
-          .insert({
-            name: menuName,
-            guest_count: guestCount,
-            prep_days: prepDays,
-            user_id: userId
-          })
-          .select()
-          .single();
+        // Create new menu
+        const createMenuOperation = async () => {
+          const { data: menu, error: menuError } = await supabase
+            .from('menus')
+            .insert({
+              name: menuName,
+              guest_count: guestCount,
+              prep_days: prepDays,
+              user_id: userId
+            })
+            .select()
+            .single();
 
-        if (menuError) throw menuError;
+          if (menuError) throw menuError;
+          return menu;
+        };
+        
+        const menu = await withTimeout(
+          retryOperation(createMenuOperation, 3, 1000, 'Create new menu'),
+          SAVE_MENU_TIMEOUT,
+          'Menu creation timed out. Please try again.'
+        );
+        
         currentMenuId = menu.id;
         set({ menuId: currentMenuId });
       } else {
-        const { error: updateError } = await supabase
-          .from('menus')
-          .update({
-            name: menuName,
-            guest_count: guestCount,
-            prep_days: prepDays
-          })
-          .eq('id', currentMenuId);
+        // Update existing menu
+        const updateMenuOperation = async () => {
+          const { error: updateError } = await supabase
+            .from('menus')
+            .update({
+              name: menuName,
+              guest_count: guestCount,
+              prep_days: prepDays
+            })
+            .eq('id', currentMenuId);
 
-        if (updateError) throw updateError;
+          if (updateError) throw updateError;
+        };
+        
+        await withTimeout(
+          retryOperation(updateMenuOperation, 3, 1000, 'Update existing menu'),
+          SAVE_MENU_TIMEOUT,
+          'Menu update timed out. Please try again.'
+        );
       }
 
-      const { error: deleteError } = await supabase
-        .from('courses')
-        .delete()
-        .eq('menu_id', currentMenuId);
+      // Delete existing courses first
+      const deleteCoursesOperation = async () => {
+        const { error: deleteError } = await supabase
+          .from('courses')
+          .delete()
+          .eq('menu_id', currentMenuId);
 
-      if (deleteError) throw deleteError;
+        if (deleteError) throw deleteError;
+      };
+      
+      await withTimeout(
+        retryOperation(deleteCoursesOperation, 2, 1000, 'Delete existing courses'),
+        SAVE_MENU_TIMEOUT,
+        'Deleting courses timed out. Please try again.'
+      );
 
-      const { data: savedCourses, error: coursesError } = await supabase
-        .from('courses')
-        .insert(
-          courses.map((course) => ({
-            menu_id: currentMenuId,
-            title: course.title,
-            order: course.order,
-          }))
-        )
-        .select();
+      // Only try to save courses if there are any
+      if (courses.length > 0) {
+        // Create new courses
+        const saveCoursesOperation = async () => {
+          const { data: savedCourses, error: coursesError } = await supabase
+            .from('courses')
+            .insert(
+              courses.map((course) => ({
+                menu_id: currentMenuId,
+                title: course.title,
+                order: course.order,
+              }))
+            )
+            .select();
 
-      if (coursesError) throw coursesError;
+          if (coursesError) throw coursesError;
+          return savedCourses;
+        };
+        
+        const savedCourses = await withTimeout(
+          retryOperation(saveCoursesOperation, 3, 1000, 'Save new courses'),
+          SAVE_MENU_TIMEOUT,
+          'Saving courses timed out. Please try again.'
+        );
 
-      if (savedCourses) {
-        set((state) => ({
-          courses: state.courses.map((course, index) => ({
-            ...course,
-            dbId: savedCourses[index].id,
-          })),
-        }));
+        // Update course IDs in the store
+        if (savedCourses) {
+          set((state) => ({
+            courses: state.courses.map((course, index) => ({
+              ...course,
+              dbId: savedCourses[index]?.id || course.dbId,
+            })),
+          }));
+        }
       }
     } catch (error: any) {
       console.error('Menu save error:', error);
