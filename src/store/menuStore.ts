@@ -48,14 +48,19 @@ interface MenuState {
 
 // Helper function to get the current user session
 async function getCurrentUserId(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id;
-  
-  if (!userId) {
-    throw new Error('User must be logged in');
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    
+    if (!userId) {
+      throw new Error('User must be logged in');
+    }
+    
+    return userId;
+  } catch (error) {
+    console.error('Error getting current user session:', error);
+    throw new Error('Failed to authenticate user');
   }
-  
-  return userId;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -188,15 +193,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   generateMenu: async (prompt: string) => {
     try {
-      // Get the menu ID first
-      const { saveMenu, addCourse, name, guestCount, courseCount } = get();
-      
-      // Make sure we have a menuId
+      // Create a menu first if we don't have one
       if (!get().menuId) {
-        await saveMenu();
+        await get().saveMenu();
       }
-
-      // Get the current user ID
+      
+      const { name, guestCount, courseCount } = get();
+      
+      // Get the current user ID for validation
       await getCurrentUserId();
 
       const response = await supabase.functions.invoke('generate-recipe', {
@@ -215,7 +219,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       }
 
       if (!response.data?.courses || !Array.isArray(response.data.courses)) {
-        throw new Error('No menu data received');
+        console.error('Invalid menu data structure:', response.data);
+        throw new Error('Invalid menu structure received');
       }
 
       // Clear existing courses first
@@ -223,7 +228,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       // Add the generated courses
       response.data.courses.forEach((courseName: string, index: number) => {
-        addCourse({
+        get().addCourse({
           title: courseName,
           order: index,
         });
@@ -238,14 +243,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   saveMenu: async () => {
     try {
-      const { name, guestCount, prepDays, courses, menuId } = get();
-      
-      // Get the current user ID
+      // Get the current user ID first to fail early if not authenticated
       const userId = await getCurrentUserId();
       
-      let currentMenuId = menuId;
+      const { name, guestCount, prepDays, courses, menuId } = get();
       const menuName = name.trim() || 'Untitled';
       
+      let currentMenuId = menuId;
+      
+      // Create or update the menu
       if (!currentMenuId) {
         const { data: menu, error: menuError } = await supabase
           .from('menus')
@@ -258,7 +264,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           .select()
           .single();
 
-        if (menuError) throw menuError;
+        if (menuError) {
+          console.error('Menu creation error:', menuError);
+          throw new Error('Failed to create menu');
+        }
+        
+        if (!menu || !menu.id) {
+          throw new Error('Failed to create menu: No ID returned');
+        }
+        
         currentMenuId = menu.id;
         set({ menuId: currentMenuId });
       } else {
@@ -271,40 +285,66 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           })
           .eq('id', currentMenuId);
 
-        if (updateError) throw updateError;
-      }
-
-      // Only delete courses if we have some to replace them with
-      if (courses.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('courses')
-          .delete()
-          .eq('menu_id', currentMenuId);
-
-        if (deleteError) throw deleteError;
-
-        const { data: savedCourses, error: coursesError } = await supabase
-          .from('courses')
-          .insert(
-            courses.map((course) => ({
-              menu_id: currentMenuId,
-              title: course.title,
-              order: course.order,
-            }))
-          )
-          .select();
-
-        if (coursesError) throw coursesError;
-
-        if (savedCourses) {
-          set((state) => ({
-            courses: state.courses.map((course, index) => ({
-              ...course,
-              dbId: savedCourses[index].id,
-            })),
-          }));
+        if (updateError) {
+          console.error('Menu update error:', updateError);
+          throw new Error('Failed to update menu');
         }
       }
+
+      // Only manage courses if we have some
+      if (courses.length > 0) {
+        try {
+          // First delete existing courses
+          const { error: deleteError } = await supabase
+            .from('courses')
+            .delete()
+            .eq('menu_id', currentMenuId);
+  
+          if (deleteError) {
+            console.error('Course deletion error:', deleteError);
+            throw new Error('Failed to update courses');
+          }
+  
+          // Then add the new courses
+          const coursesToInsert = courses.map((course) => ({
+            menu_id: currentMenuId,
+            title: course.title,
+            order: course.order,
+          }));
+          
+          const { data: savedCourses, error: coursesError } = await supabase
+            .from('courses')
+            .insert(coursesToInsert)
+            .select();
+  
+          if (coursesError) {
+            console.error('Course insertion error:', coursesError);
+            throw new Error('Failed to save courses');
+          }
+  
+          // Update courses with their database IDs
+          if (savedCourses && savedCourses.length > 0) {
+            set((state) => ({
+              courses: state.courses.map((course, index) => {
+                // Make sure we don't go beyond the array bounds
+                if (index < savedCourses.length) {
+                  return {
+                    ...course,
+                    dbId: savedCourses[index].id,
+                  };
+                }
+                return course;
+              }),
+            }));
+          }
+        } catch (error) {
+          console.error('Error handling courses:', error);
+          // Even with course errors, if we have a menu ID, we should return it
+          // so future operations can continue
+        }
+      }
+      
+      return currentMenuId;
     } catch (error: any) {
       console.error('Menu save error:', error);
       toast.error(error.message || 'Failed to save menu');
