@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
@@ -23,7 +23,9 @@ const Index = () => {
     updateCourse,
     generateMenu,
     menuPlanningComplete,
-    setMenuPlanningComplete
+    setMenuPlanningComplete,
+    courseCount,
+    setCourseCount
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -32,7 +34,46 @@ const Index = () => {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
-  const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
+  const [desiredCourseCount, setDesiredCourseCount] = useState(courseCount || 3);
+  
+  // Add a ref for the editing input
+  const editingInputRef = useRef<HTMLInputElement>(null);
+
+  // Effect to handle clicks outside the editing input
+  useEffect(() => {
+    // If we're not editing, there's no need for this effect
+    if (!editingCourseId) return;
+
+    // Find the current course we're editing
+    const currentCourse = courses.find(course => course.id === editingCourseId);
+    
+    // Function to handle clicks outside the input
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        editingInputRef.current && 
+        !editingInputRef.current.contains(event.target as Node)
+      ) {
+        // If title hasn't changed, just exit edit mode
+        if (currentCourse && editingTitle === currentCourse.title) {
+          setEditingCourseId(null);
+        } else if (editingTitle.trim()) {
+          // If title has changed and is not empty, save it
+          saveEditing();
+        } else {
+          // If empty, revert to original
+          cancelEditing();
+        }
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [editingCourseId, editingTitle, courses]);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -223,7 +264,10 @@ const Index = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setDesiredCourseCount(Math.max(1, desiredCourseCount - 1))}
+                    onClick={() => {
+                      setDesiredCourseCount(Math.max(1, desiredCourseCount - 1));
+                      setCourseCount(Math.max(1, desiredCourseCount - 1));
+                    }}
                     disabled={menuPlanningComplete}
                   >
                     <Minus className="h-4 w-4" />
@@ -232,7 +276,10 @@ const Index = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setDesiredCourseCount(desiredCourseCount + 1)}
+                    onClick={() => {
+                      setDesiredCourseCount(desiredCourseCount + 1);
+                      setCourseCount(desiredCourseCount + 1);
+                    }}
                     disabled={menuPlanningComplete}
                   >
                     <Plus className="h-4 w-4" />
@@ -298,6 +345,7 @@ const Index = () => {
                             }
                           }}
                           autoFocus
+                          ref={editingInputRef}
                         />
                         <Button
                           variant="ghost"
