@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -44,8 +43,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1000,
-          responseMimeType: 'application/json'
+          maxOutputTokens: 1000
         }
       }
 
@@ -167,8 +165,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
       }],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 500,
-        responseMimeType: 'application/json'
+        maxOutputTokens: 500
       }
     }
 
