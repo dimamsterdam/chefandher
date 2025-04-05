@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -323,13 +322,25 @@ serve(async (req) => {
       // Use provided courseCount or default to 3
       const courses = courseCount ? Number(courseCount) : 3
       
-      // Generate menu courses
-      const menuCourses = await generateMenuCourses(prompt, guests, courses)
-      
-      return new Response(JSON.stringify({ courses: menuCourses }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      })
+      try {
+        // Generate menu courses
+        const menuCourses = await generateMenuCourses(prompt, guests, courses)
+        
+        return new Response(JSON.stringify({ courses: menuCourses }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        })
+      } catch (error) {
+        console.error('Menu generation failed:', error)
+        return new Response(JSON.stringify({ 
+          error: 'Menu generation failed', 
+          details: error.message,
+          timestamp: new Date().toISOString() 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        })
+      }
     }
     
     // Otherwise, handle as a recipe generation request
@@ -374,15 +385,30 @@ serve(async (req) => {
     6. DO NOT include any text outside the JSON object
     7. DO NOT wrap the response in markdown code blocks`
 
-    const recipe = await generateRecipeWithRetry(prompt)
+    try {
+      const recipe = await generateRecipeWithRetry(prompt)
 
-    // Force servings to match requested guest count
-    recipe.servings = actualGuestCount
+      // Force servings to match requested guest count
+      recipe.servings = actualGuestCount
 
-    return new Response(JSON.stringify(recipe), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
-    })
+      return new Response(JSON.stringify(recipe), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      })
+    } catch (error) {
+      console.error('Recipe generation error:', error)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to generate recipe', 
+          details: error.message,
+          timestamp: new Date().toISOString()
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      )
+    }
   } catch (error) {
     console.error('Error in generate-recipe function:', error)
     return new Response(
