@@ -129,47 +129,55 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return;
       }
 
-      const response = await supabase.functions.invoke('generate-recipe', {
-        body: {
-          courseTitle: finalCourse.title,
-          guestCount,
-          requirements,
-        },
-      });
+      try {
+        const response = await supabase.functions.invoke('generate-recipe', {
+          body: {
+            courseTitle: finalCourse.title,
+            guestCount,
+            requirements,
+          },
+          retryAttempts: 2, // Add retry attempts for resilience
+          retryInterval: 1000, // Wait 1 second between retries
+        });
 
-      if (response.error) {
-        console.error('Recipe generation error:', response.error);
-        throw new Error(response.error.message || 'Failed to generate recipe');
+        if (response.error) {
+          console.error('Recipe generation error:', response.error);
+          throw new Error(response.error.message || 'Failed to generate recipe');
+        }
+
+        if (!response.data) {
+          throw new Error('No recipe data received');
+        }
+
+        const recipe: Recipe = {
+          course_id: finalCourse.dbId,
+          created_by: userId,
+          ...response.data,
+        };
+
+        const { data: savedRecipe, error: saveError } = await supabase
+          .from('recipes')
+          .insert(recipe)
+          .select()
+          .single();
+
+        if (saveError) {
+          console.error('Recipe save error:', saveError);
+          throw new Error('Failed to save recipe');
+        }
+
+        set((state) => ({
+          courses: state.courses.map((c) =>
+            c.id === courseId ? { ...c, recipe: savedRecipe } : c
+          ),
+        }));
+
+        toast.success('Recipe generated successfully!');
+      } catch (error: any) {
+        console.error('Recipe generation error:', error);
+        toast.error(error.message || 'Failed to generate recipe');
+        throw error;
       }
-
-      if (!response.data) {
-        throw new Error('No recipe data received');
-      }
-
-      const recipe: Recipe = {
-        course_id: finalCourse.dbId,
-        created_by: userId,
-        ...response.data,
-      };
-
-      const { data: savedRecipe, error: saveError } = await supabase
-        .from('recipes')
-        .insert(recipe)
-        .select()
-        .single();
-
-      if (saveError) {
-        console.error('Recipe save error:', saveError);
-        throw new Error('Failed to save recipe');
-      }
-
-      set((state) => ({
-        courses: state.courses.map((c) =>
-          c.id === courseId ? { ...c, recipe: savedRecipe } : c
-        ),
-      }));
-
-      toast.success('Recipe generated successfully!');
     } catch (error: any) {
       console.error('Recipe generation error:', error);
       toast.error(error.message || 'Failed to generate recipe');
@@ -206,33 +214,41 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       
       Each dish name should be descriptive and appetizing.`;
 
-      const response = await supabase.functions.invoke('generate-recipe', {
-        body: {
-          generateMenu: true,
-          prompt: menuThemePrompt,
-          menuName: name,
-          guestCount: guestCount,
-          courseCount: courseCount
-        },
-      });
-
-      if (response.error) {
-        console.error('Menu generation error:', response.error);
-        throw new Error(response.error.message || 'Failed to generate menu');
-      }
-
-      if (!response.data?.courses || !Array.isArray(response.data.courses)) {
-        throw new Error('No menu data received');
-      }
-
-      response.data.courses.forEach((courseName: string) => {
-        addCourse({
-          title: courseName,
-          order: get().courses.length,
+      try {
+        const response = await supabase.functions.invoke('generate-recipe', {
+          body: {
+            generateMenu: true,
+            prompt: menuThemePrompt,
+            menuName: name,
+            guestCount: guestCount,
+            courseCount: courseCount
+          },
+          retryAttempts: 2, // Add retry attempts for resilience
+          retryInterval: 1000, // Wait 1 second between retries
         });
-      });
 
-      toast.success('Menu generated successfully!');
+        if (response.error) {
+          console.error('Menu generation error:', response.error);
+          throw new Error(response.error.message || 'Failed to generate menu');
+        }
+
+        if (!response.data?.courses || !Array.isArray(response.data.courses)) {
+          throw new Error('No menu data received');
+        }
+
+        response.data.courses.forEach((courseName: string) => {
+          addCourse({
+            title: courseName,
+            order: get().courses.length,
+          });
+        });
+
+        toast.success('Menu generated successfully!');
+      } catch (error: any) {
+        console.error('Menu generation error:', error);
+        toast.error(error.message || 'Failed to generate menu');
+        throw error;
+      }
     } catch (error: any) {
       console.error('Menu generation error:', error);
       toast.error(error.message || 'Failed to generate menu');

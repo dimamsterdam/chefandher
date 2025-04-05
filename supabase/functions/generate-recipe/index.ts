@@ -68,12 +68,13 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         body: JSON.stringify(requestBody),
       })
 
-      const responseText = await response.text()
-      console.log(`Attempt ${attempt + 1} raw response:`, responseText)
-
       if (!response.ok) {
+        const responseText = await response.text()
         throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
       }
+
+      const responseText = await response.text()
+      console.log(`Attempt ${attempt + 1} raw response:`, responseText)
 
       let data
       try {
@@ -207,12 +208,13 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
       body: JSON.stringify(requestBody),
     })
 
-    const responseText = await response.text()
-    console.log('Menu generation raw response:', responseText)
-
     if (!response.ok) {
+      const responseText = await response.text()
       throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
     }
+
+    const responseText = await response.text()
+    console.log('Menu generation raw response:', responseText)
 
     let data
     try {
@@ -287,12 +289,23 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const body = await req.json()
+    // Improve error handling by properly parsing the request
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Failed to parse request body:", e);
+      return new Response(JSON.stringify({ error: "Invalid JSON in request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     // Check if this is a menu generation request
     if (body.generateMenu) {
