@@ -100,7 +100,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           console.error('Error fetching profile during auth change:', err);
         }
         setAuthChecked(true);
-      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      } else if (event === 'SIGNED_OUT') {
+        // Removed 'USER_DELETED' as it's not a valid event type in the current Supabase version
         setUser(null);
         setProfile(null);
         navigate('/auth');
