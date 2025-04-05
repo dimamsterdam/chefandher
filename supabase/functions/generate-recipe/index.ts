@@ -8,6 +8,10 @@ const corsHeaders = {
 
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 const API_TIMEOUT = 45000; // 45 seconds timeout for API calls
+const MAX_RETRIES = 3;  // Maximum number of retries for API calls
+
+// Helper function to add an exponential backoff delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 function cleanJsonResponse(response: string): string {
   // First, try to extract a JSON object if it's embedded in text
@@ -44,6 +48,45 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): 
   });
 };
 
+// Generic retry function for API calls with exponential backoff
+async function retryFetch(url: string, options: RequestInit, maxRetries = MAX_RETRIES, timeoutMs = API_TIMEOUT): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`API call attempt ${attempt + 1}/${maxRetries} to ${url}`);
+      
+      // Add timeout to the API call
+      const response = await withTimeout(
+        fetch(url, options),
+        timeoutMs,
+        `API call to ${url} timed out after ${timeoutMs}ms`
+      );
+      
+      if (!response.ok) {
+        const responseText = await response.text();
+        throw new Error(`API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`);
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error(`Attempt ${attempt + 1} failed:`, error);
+      lastError = error;
+      
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff with jitter
+        const jitter = Math.random() * 300;
+        const backoffTime = 1000 * Math.pow(1.5, attempt) + jitter;
+        console.log(`Retrying in ${Math.round(backoffTime / 1000)} seconds...`);
+        await delay(backoffTime);
+        continue;
+      }
+    }
+  }
+  
+  throw lastError || new Error(`Failed after ${maxRetries} attempts`);
+}
+
 async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<any> {
   let lastError: Error | null = null;
   
@@ -79,24 +122,20 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
-      // Add timeout to the API call
-      const response = await withTimeout(
-        fetch(PERPLEXITY_API_URL, {
+      // Use the retryFetch function with proper timeout
+      const response = await retryFetch(
+        PERPLEXITY_API_URL,
+        {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(requestBody),
-        }),
-        API_TIMEOUT,
-        'Perplexity API call timed out'
+        },
+        MAX_RETRIES,
+        API_TIMEOUT
       );
-
-      if (!response.ok) {
-        const responseText = await response.text()
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
-      }
 
       const responseText = await response.text()
       console.log(`Attempt ${attempt + 1} raw response:`, responseText)
@@ -174,7 +213,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       if (attempt < maxRetries) {
         console.log(`Retrying... (${attempt + 1}/${maxRetries})`)
         // Add exponential backoff
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+        await delay(1000 * Math.pow(2, attempt));
         continue
       }
     }
@@ -226,24 +265,20 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
 
-    // Add timeout to the API call
-    const response = await withTimeout(
-      fetch(PERPLEXITY_API_URL, {
+    // Use retryFetch with proper timeout
+    const response = await retryFetch(
+      PERPLEXITY_API_URL,
+      {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
-      }),
-      API_TIMEOUT,
-      'Menu generation API call timed out'
+      },
+      MAX_RETRIES,
+      API_TIMEOUT
     );
-
-    if (!response.ok) {
-      const responseText = await response.text()
-      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
-    }
 
     const responseText = await response.text()
     console.log('Menu generation raw response:', responseText)
@@ -355,7 +390,10 @@ serve(async (req) => {
       body = await req.json();
     } catch (e) {
       console.error("Failed to parse request body:", e);
-      return new Response(JSON.stringify({ error: "Invalid JSON in request body" }), {
+      return new Response(JSON.stringify({ 
+        error: "Invalid JSON in request body",
+        timestamp: new Date().toISOString()
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -394,10 +432,13 @@ serve(async (req) => {
       const courses = courseCount ? Number(courseCount) : 3
       
       try {
-        // Generate menu courses
+        // Generate menu courses with retry logic
         const menuCourses = await generateMenuCourses(prompt, guests, courses)
         
-        return new Response(JSON.stringify({ courses: menuCourses }), {
+        return new Response(JSON.stringify({ 
+          courses: menuCourses,
+          timestamp: new Date().toISOString()
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200
         })
@@ -462,7 +503,10 @@ serve(async (req) => {
       // Force servings to match requested guest count
       recipe.servings = actualGuestCount
 
-      return new Response(JSON.stringify(recipe), {
+      return new Response(JSON.stringify({
+        ...recipe,
+        timestamp: new Date().toISOString()
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       })

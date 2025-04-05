@@ -29,6 +29,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       // Set timeout to 15 seconds to abort hanging requests
       const timeoutId = setTimeout(() => {
         controller.abort();
+        console.error('Supabase request timed out');
       }, 15000);
       
       return fetch(url, { ...options, signal })
@@ -42,6 +43,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
           // Specifically handle abort errors
           if (error.name === 'AbortError') {
             toast.error('The request timed out. Please check your connection and try again.');
+          } else if (error.name === 'TypeError' && error.message === 'Load failed') {
+            toast.error('Failed to connect to the server. Please check your network connection.');
+          } else {
+            toast.error(`Request failed: ${error.message || 'Unknown error'}`);
           }
           throw error;
         });
@@ -64,4 +69,60 @@ if (typeof window !== 'undefined') {
     console.log('Application is offline');
     toast.error('You are offline. Some features will be unavailable.');
   });
+
+  // Check for session expiration and token refresh failures
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'TOKEN_REFRESHED') {
+      console.log('Auth token refreshed successfully');
+    } else if (event === 'USER_UPDATED') {
+      console.log('User session updated');
+    }
+  });
+
+  // Add additional error handling for Edge Function calls
+  const originalInvoke = supabase.functions.invoke;
+  supabase.functions.invoke = async function (functionName, options = {}) {
+    try {
+      console.log(`Calling edge function: ${functionName}`);
+      
+      const controller = new AbortController();
+      const { signal } = controller;
+      
+      // Set a timeout for edge function calls
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.error(`Edge function call to ${functionName} timed out after 30 seconds`);
+      }, 30000);
+
+      // Add signal to fetch options if not already present
+      const fetchOptions = options.fetchOptions || {};
+      fetchOptions.signal = signal;
+      
+      const updatedOptions = { ...options, fetchOptions };
+      
+      // Try the original invoke with timeout
+      const response = await Promise.race([
+        originalInvoke.call(this, functionName, updatedOptions),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Edge function ${functionName} call timed out`)), 30000)
+        )
+      ]);
+      
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      console.error(`Error invoking edge function ${functionName}:`, error);
+      
+      // Show appropriate error message based on error type
+      if (error.name === 'AbortError' || error.message?.includes('timed out')) {
+        toast.error(`The request to ${functionName} timed out. Please try again later.`);
+      } else if (error.name === 'TypeError' && error.message === 'Load failed') {
+        toast.error('Failed to connect to the server. Please check your network connection.');
+      } else {
+        toast.error(`Error calling ${functionName}: ${error.message || 'Unknown error'}`);
+      }
+      
+      throw error;
+    }
+  };
 }
