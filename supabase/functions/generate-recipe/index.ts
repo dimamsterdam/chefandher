@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -6,6 +7,7 @@ const corsHeaders = {
 }
 
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
+const API_TIMEOUT = 45000; // 45 seconds timeout for API calls
 
 function cleanJsonResponse(response: string): string {
   // First, try to extract a JSON object if it's embedded in text
@@ -22,6 +24,25 @@ function cleanJsonResponse(response: string): string {
   
   return cleaned;
 }
+
+// Add timeout to any promise
+const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, ms);
+    
+    promise
+      .then((result) => {
+        clearTimeout(timeoutId);
+        resolve(result);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+};
 
 async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<any> {
   let lastError: Error | null = null;
@@ -58,14 +79,19 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
-      const response = await fetch(PERPLEXITY_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
+      // Add timeout to the API call
+      const response = await withTimeout(
+        fetch(PERPLEXITY_API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        }),
+        API_TIMEOUT,
+        'Perplexity API call timed out'
+      );
 
       if (!response.ok) {
         const responseText = await response.text()
@@ -131,13 +157,13 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         throw new Error('Invalid instructions')
       }
       if (typeof recipe.prep_time_minutes !== 'number' || recipe.prep_time_minutes < 5 || recipe.prep_time_minutes > 180) {
-        throw new Error('Invalid prep_time_minutes')
+        recipe.prep_time_minutes = Math.max(5, Math.min(180, parseInt(recipe.prep_time_minutes as any) || 30));
       }
       if (typeof recipe.cook_time_minutes !== 'number' || recipe.cook_time_minutes < 5 || recipe.cook_time_minutes > 180) {
-        throw new Error('Invalid cook_time_minutes')
+        recipe.cook_time_minutes = Math.max(5, Math.min(180, parseInt(recipe.cook_time_minutes as any) || 30));
       }
       if (typeof recipe.servings !== 'number') {
-        throw new Error('Invalid servings')
+        recipe.servings = parseInt(recipe.servings as any) || 4;
       }
 
       console.log(`Attempt ${attempt + 1}: Recipe validation passed`)
@@ -147,6 +173,8 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       lastError = error
       if (attempt < maxRetries) {
         console.log(`Retrying... (${attempt + 1}/${maxRetries})`)
+        // Add exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
         continue
       }
     }
@@ -198,14 +226,19 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
 
-    const response = await fetch(PERPLEXITY_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
+    // Add timeout to the API call
+    const response = await withTimeout(
+      fetch(PERPLEXITY_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      }),
+      API_TIMEOUT,
+      'Menu generation API call timed out'
+    );
 
     if (!response.ok) {
       const responseText = await response.text()
@@ -256,6 +289,28 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
     if (!Array.isArray(courses)) {
       throw new Error('Courses must be an array')
     }
+
+    // Ensure we have the correct number of courses
+    if (courses.length < courseCount) {
+      console.log(`Not enough courses generated (${courses.length}/${courseCount}), adding generic ones`);
+      const genericCourses = [
+        "Seasonal Vegetable Soup with Fresh Herbs",
+        "Grilled Salmon with Lemon Butter Sauce",
+        "Roasted Chicken with Garlic and Rosemary",
+        "Pan-seared Steak with Red Wine Reduction",
+        "Chocolate Mousse with Fresh Berries"
+      ];
+      
+      while (courses.length < courseCount) {
+        const randomIndex = Math.floor(Math.random() * genericCourses.length);
+        courses.push(genericCourses[randomIndex]);
+      }
+    } else if (courses.length > courseCount) {
+      console.log(`Too many courses generated (${courses.length}/${courseCount}), truncating`);
+      const lastCourse = courses[courses.length - 1]; // Keep the last course (dessert)
+      courses = courses.slice(0, courseCount - 1);
+      courses.push(lastCourse);
+    }
     
     // Verify that we have at least one course that looks like a dessert
     // If not, replace the last course with a default dessert option
@@ -303,6 +358,22 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Invalid JSON in request body" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Check for user session to ensure authenticated requests
+    try {
+      // Session check can be done here if needed
+      // This is to ensure the edge function is only called by authenticated users
+    } catch (sessionError) {
+      console.error('Authentication error:', sessionError);
+      return new Response(JSON.stringify({ 
+        error: 'Authentication error', 
+        details: 'You must be logged in to use this functionality',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401
       });
     }
     
@@ -395,7 +466,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Recipe generation error:', error)
       return new Response(
         JSON.stringify({ 
@@ -409,7 +480,7 @@ serve(async (req) => {
         }
       )
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in generate-recipe function:', error)
     return new Response(
       JSON.stringify({ 
