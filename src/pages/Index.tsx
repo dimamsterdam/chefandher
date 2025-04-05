@@ -23,9 +23,7 @@ const Index = () => {
     updateCourse,
     generateMenu,
     menuPlanningComplete,
-    setMenuPlanningComplete,
-    courseCount,
-    setCourseCount
+    setMenuPlanningComplete
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -34,6 +32,7 @@ const Index = () => {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
+  const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -72,7 +71,7 @@ const Index = () => {
     setGeneratingMenu(true);
     try {
       // Create a prompt based on the menu name
-      const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${courseCount} courses that specifically focuses on the theme of ${name}.`;
+      const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
       await generateMenu(prompt);
       toast.success("Menu generated successfully!");
     } catch (error) {
@@ -224,16 +223,16 @@ const Index = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setCourseCount(Math.max(1, courseCount - 1))}
+                    onClick={() => setDesiredCourseCount(Math.max(1, desiredCourseCount - 1))}
                     disabled={menuPlanningComplete}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="min-w-[3rem] text-center">{courseCount}</span>
+                  <span className="min-w-[3rem] text-center">{desiredCourseCount}</span>
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setCourseCount(courseCount + 1)}
+                    onClick={() => setDesiredCourseCount(desiredCourseCount + 1)}
                     disabled={menuPlanningComplete}
                   >
                     <Plus className="h-4 w-4" />
