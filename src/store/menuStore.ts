@@ -135,9 +135,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             courseTitle: finalCourse.title,
             guestCount,
             requirements,
-          },
-          retryAttempts: 2, // Add retry attempts for resilience
-          retryInterval: 1000, // Wait 1 second between retries
+          }
         });
 
         if (response.error) {
@@ -222,9 +220,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             menuName: name,
             guestCount: guestCount,
             courseCount: courseCount
-          },
-          retryAttempts: 2, // Add retry attempts for resilience
-          retryInterval: 1000, // Wait 1 second between retries
+          }
         });
 
         if (response.error) {
