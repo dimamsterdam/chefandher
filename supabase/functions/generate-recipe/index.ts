@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-1.5:generateContent'
 
 function cleanJsonResponse(response: string): string {
   // First, try to extract a JSON object if it's embedded in text
@@ -29,67 +29,49 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempt ${attempt + 1}: Starting recipe generation`)
-      const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+      const apiKey = Deno.env.get('GEMINI_API_KEY')
       if (!apiKey) {
-        throw new Error('PERPLEXITY_API_KEY is not set')
+        throw new Error('GEMINI_API_KEY is not set')
       }
 
       const requestBody = {
-        model: 'llama-3.1-sonar-large-128k-online',
-        messages: [
-          { 
-            role: 'system', 
-            content: `You are a professional chef that ONLY responds with valid JSON objects. 
-            Your response must ALWAYS include these exact fields:
-            - title (string)
-            - ingredients (array of strings)
-            - instructions (array of strings)
-            - prep_time_minutes (number between 5 and 180)
-            - cook_time_minutes (number between 5 and 180)
-            - servings (number matching requested guest count)
-            Never include any additional text or fields.
-            DO NOT wrap the JSON in markdown code blocks.`
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.0,
-        max_tokens: 1000,
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1000,
+          responseMimeType: 'application/json'
+        }
       }
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
-      const response = await fetch(PERPLEXITY_API_URL, {
+      const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
       })
 
-      const responseText = await response.text()
-      console.log(`Attempt ${attempt + 1} raw response:`, responseText)
+      const responseData = await response.json()
+      console.log(`Attempt ${attempt + 1} raw response:`, JSON.stringify(responseData, null, 2))
 
       if (!response.ok) {
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}\nResponse: ${JSON.stringify(responseData)}`)
       }
 
-      let data
-      try {
-        data = JSON.parse(responseText)
-      } catch (error) {
-        console.error('Failed to parse API response:', error)
-        throw new Error(`Invalid JSON response: ${responseText}`)
+      // Extract the generated JSON
+      const generatedContent = responseData.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!generatedContent) {
+        throw new Error('No content generated')
       }
 
-      console.log(`Attempt ${attempt + 1} parsed response:`, JSON.stringify(data, null, 2))
-
-      if (!data.choices?.[0]?.message?.content) {
-        throw new Error('Invalid API response structure')
-      }
-
-      // Clean the response content before parsing
-      const cleanedContent = cleanJsonResponse(data.choices[0].message.content)
+      // Clean and parse the JSON
+      const cleanedContent = cleanJsonResponse(generatedContent)
       console.log(`Attempt ${attempt + 1} cleaned content:`, cleanedContent)
 
       let recipe
@@ -101,7 +83,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         // Last attempt - try to use a more aggressive approach to extract JSON
         if (attempt === maxRetries) {
           // Look for the JSON structure within the response
-          const potentialJson = data.choices[0].message.content.match(/(\{[\s\S]*\})/);
+          const potentialJson = generatedContent.match(/(\{[\s\S]*\})/);
           if (potentialJson) {
             try {
               recipe = JSON.parse(potentialJson[0]);
@@ -156,75 +138,50 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
 
 async function generateMenuCourses(prompt: string, guestCount: number, courseCount: number): Promise<string[]> {
   try {
-    const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+    const apiKey = Deno.env.get('GEMINI_API_KEY')
     if (!apiKey) {
-      throw new Error('PERPLEXITY_API_KEY is not set')
+      throw new Error('GEMINI_API_KEY is not set')
     }
 
     console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
     const requestBody = {
-      model: 'llama-3.1-sonar-large-128k-online',
-      messages: [
-        { 
-          role: 'system', 
-          content: `You are a professional chef that creates elegant, sophisticated menus.
-          You will respond with ONLY a simple JSON array of specific dish names (NOT course types).
-          Do not include any markdown, just return the raw JSON array.
-          
-          Example response: ["Truffle Risotto with Wild Mushrooms", "Herb-crusted Rack of Lamb", "Chocolate Soufflé with Vanilla Bean Ice Cream"]
-          
-          IMPORTANT GUIDELINES:
-          - Each dish name should be specific, descriptive, and appetizing
-          - Include EXACTLY ${courseCount} dishes appropriate for the requested menu theme
-          - Do not use generic terms like "Appetizer", "Main Course", or "Dessert"
-          - Always include at least one specific dessert at the end of the menu
-          - Each dish name should be elegant and sophisticated (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" NOT just "Scallops")
-          - Do not include numbers or other prefixes in the dish names
-          - DO NOT wrap the response in code blocks or any other formatting
-          - Make sure the dish names align with the requested menu theme`
-        },
-        { 
-          role: 'user', 
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
+        responseMimeType: 'application/json'
+      }
     }
 
     console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
 
-    const response = await fetch(PERPLEXITY_API_URL, {
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
     })
 
-    const responseText = await response.text()
-    console.log('Menu generation raw response:', responseText)
+    const responseData = await response.json()
+    console.log('Menu generation raw response:', JSON.stringify(responseData, null, 2))
 
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}\nResponse: ${JSON.stringify(responseData)}`)
     }
 
-    let data
-    try {
-      data = JSON.parse(responseText)
-    } catch (error) {
-      console.error('Failed to parse API response:', error)
-      throw new Error(`Invalid JSON response: ${responseText}`)
+    const generatedContent = responseData.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!generatedContent) {
+      throw new Error('No content generated')
     }
 
-    if (!data.choices?.[0]?.message?.content) {
-      throw new Error('Invalid API response structure')
-    }
-
-    // Clean the response content before parsing
-    const cleanedContent = cleanJsonResponse(data.choices[0].message.content)
+    // Clean and parse the JSON
+    const cleanedContent = cleanJsonResponse(generatedContent)
     console.log('Cleaned menu content:', cleanedContent)
 
     let courses
