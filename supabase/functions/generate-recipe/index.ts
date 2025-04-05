@@ -403,6 +403,7 @@ serve(async (req) => {
     try {
       // Session check can be done here if needed
       // This is to ensure the edge function is only called by authenticated users
+      // For now, we'll skip this check to focus on connectivity issues
     } catch (sessionError) {
       console.error('Authentication error:', sessionError);
       return new Response(JSON.stringify({ 
@@ -430,6 +431,10 @@ serve(async (req) => {
       
       // Use provided courseCount or default to 3
       const courses = courseCount ? Number(courseCount) : 3
+      
+      // Add request validation logs
+      console.log(`Processing menu generation request with prompt: "${prompt.substring(0, 50)}..."`)
+      console.log(`Guest count: ${guests}, Course count: ${courses}`)
       
       try {
         // Generate menu courses with retry logic

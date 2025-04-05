@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
 import { 
@@ -56,7 +55,6 @@ const Index = () => {
   
   const editingInputRef = useRef<HTMLInputElement>(null);
 
-  // Monitor network status
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
     const handleOffline = () => setNetworkStatus('offline');
@@ -70,14 +68,12 @@ const Index = () => {
     };
   }, []);
 
-  // Show error dialog when generation error occurs
   useEffect(() => {
     if (generateError) {
       setShowErrorDialog(true);
     }
   }, [generateError]);
 
-  // Update lastGeneratedName when menu is successfully generated
   useEffect(() => {
     if (!isGeneratingMenu && courses.length > 0) {
       setLastGeneratedName(name);
@@ -132,24 +128,38 @@ const Index = () => {
       toast.success("Recipe generated successfully!");
     } catch (error) {
       console.error('Recipe generation failed:', error);
-      // Toast is already shown by the store
     }
   };
 
   const handleGenerateMenu = async () => {
-    if (isGeneratingMenu || networkStatus === 'offline') return;
-    
-    if (!name.trim()) {
-      toast.error("Please enter a menu name first");
-      return;
-    }
-    
-    try {
-      const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
-      await generateMenu(prompt);
-    } catch (error) {
-      console.error('Menu generation failed:', error);
-      // Toast is already shown by the store
+    if (isGeneratingMenu || networkStatus === 'offline') {
+      if (networkStatus === 'offline') {
+        toast.error("You're currently offline. Please check your connection and try again.");
+        return;
+      }
+      
+      if (!name.trim()) {
+        toast.error("Please enter a menu name first");
+        return;
+      }
+      
+      try {
+        toast("Generating your menu. This may take a moment...", {
+          duration: 10000,
+          id: "menu-generation-progress"
+        });
+        
+        const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
+        await generateMenu(prompt);
+      } catch (error) {
+        console.error('Menu generation failed:', error);
+        setTimeout(() => {
+          toast.error("If you continue to experience issues, try refreshing the page or checking your internet connection.", {
+            duration: 8000,
+            id: "menu-generation-help"
+          });
+        }, 1000);
+      }
     }
   };
 
@@ -200,7 +210,6 @@ const Index = () => {
     toast.success("Menu planning completed! You can now access other sections.");
   };
 
-  // Button should be active when name is set but no menu has been generated, or name changed after generation
   const isWandButtonActive = name.trim() && !isGeneratingMenu && !menuPlanningComplete && name !== lastGeneratedName;
 
   return (
@@ -564,7 +573,6 @@ const Index = () => {
         </motion.div>
       </div>
 
-      {/* Error dialog */}
       <Dialog open={showErrorDialog} onOpenChange={(open) => {
         setShowErrorDialog(open);
         if (!open) clearGenerateError();

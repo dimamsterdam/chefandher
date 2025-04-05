@@ -96,6 +96,8 @@ supabase.functions.invoke = async function (functionName, options = {}) {
       toast.error(`The request to ${functionName} timed out. Please try again later.`);
     } else if (error.name === 'TypeError' && error.message === 'Load failed') {
       toast.error('Failed to connect to the server. Please check your network connection.');
+    } else if (error.message?.includes('Failed to send')) {
+      toast.error('Connection to server failed. Please check your network and try again later.');
     } else {
       toast.error(`Error calling ${functionName}: ${error.message || 'Unknown error'}`);
     }
@@ -124,8 +126,4 @@ if (typeof window !== 'undefined') {
       console.log('User session updated');
     }
   });
-
-  // Add additional error handling for Edge Function calls - REMOVING DUPLICATE IMPLEMENTATION
-  // We already have one implementation above, so this second one is removed to avoid conflicts
-  // This was causing the TypeScript error with fetchOptions
 }

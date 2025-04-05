@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -324,7 +323,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return session?.user?.id;
       };
       
-      const userId = await retryOperation(sessionCheck, 3, 1000, 'Authentication check');
+      let userId;
+      try {
+        userId = await retryOperation(sessionCheck, 3, 1000, 'Authentication check');
+      } catch (error) {
+        // If we can't get a session, check network connectivity
+        if (!window.navigator.onLine) {
+          throw new Error("You're offline. Please check your internet connection and try again.");
+        }
+        throw error;
+      }
       
       if (!userId) {
         toast.error('You must be logged in to generate a menu');
@@ -359,6 +367,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       Each dish name should be descriptive and appetizing.`;
 
       const generateMenuOperation = async () => {
+        // Check network connectivity before making the request
+        if (!window.navigator.onLine) {
+          throw new Error("You're offline. Please check your internet connection and try again.");
+        }
+        
         const functionPromise = supabase.functions.invoke('generate-recipe', {
           body: {
             generateMenu: true,
@@ -377,12 +390,21 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         );
       };
 
-      const response = await retryOperation(
-        generateMenuOperation,
-        MAX_RETRIES,
-        1500,
-        'Menu generation'
-      );
+      let response;
+      try {
+        response = await retryOperation(
+          generateMenuOperation,
+          MAX_RETRIES,
+          1500,
+          'Menu generation'
+        );
+      } catch (error) {
+        // If all retries fail, check network connectivity
+        if (!window.navigator.onLine) {
+          throw new Error("You're offline. Please check your internet connection and try again.");
+        }
+        throw error;
+      }
 
       if (response.error) {
         throw new Error(response.error.message || 'Failed to generate menu');
