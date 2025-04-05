@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -145,10 +146,22 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
+    // Special formatting for menu generation
+    const menuPrompt = `
+    ${prompt}
+    
+    IMPORTANT: 
+    - Please respond with ONLY a JSON array of exactly ${courseCount} specific dish names
+    - Format: ["Dish Name 1", "Dish Name 2", "Dish Name 3", ...]
+    - Each dish should be a specific dish name, not a generic course type
+    - No explanations, comments, or other text outside the JSON array
+    - Example correct response: ["Garlic Butter Shrimp", "Beef Wellington", "Tiramisu"]
+    `;
+
     const requestBody = {
       contents: [{
         parts: [{
-          text: prompt
+          text: menuPrompt
         }]
       }],
       generationConfig: {
@@ -192,7 +205,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
       console.error('Failed to parse courses JSON, trying to extract array:', error)
       
       // Handle the case where the response contains text that's not just the JSON array
-      const arrayMatch = cleanedContent.match(/\[.*\]/s);
+      const arrayMatch = generatedContent.match(/\[.*\]/s);
       if (arrayMatch) {
         try {
           courses = JSON.parse(arrayMatch[0]);
@@ -208,6 +221,24 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     if (!Array.isArray(courses)) {
       throw new Error('Courses must be an array')
+    }
+
+    // Make sure we have exactly the requested number of courses
+    if (courses.length > courseCount) {
+      courses = courses.slice(0, courseCount);
+    } else if (courses.length < courseCount) {
+      // If we don't have enough, pad with generic courses
+      const genericCourses = [
+        "Grilled Salmon with Lemon Butter", 
+        "Roasted Vegetable Risotto", 
+        "Beef Tenderloin with Red Wine Sauce",
+        "Chocolate Soufflé",
+        "Mushroom and Truffle Pasta"
+      ];
+      
+      while (courses.length < courseCount) {
+        courses.push(genericCourses[courses.length % genericCourses.length]);
+      }
     }
 
     console.log('Generated menu courses:', courses)

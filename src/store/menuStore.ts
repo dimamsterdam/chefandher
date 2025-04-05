@@ -27,14 +27,14 @@ interface MenuState {
   name: string;
   guestCount: number;
   prepDays: number;
-  courseCount: number; // Added courseCount state
+  courseCount: number;
   courses: Course[];
   menuId: string | null;
   menuPlanningComplete: boolean;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
-  setCourseCount: (count: number) => void; // Added setCourseCount method
+  setCourseCount: (count: number) => void;
   addCourse: (course: Omit<Course, 'id'>) => void;
   removeCourse: (id: string) => void;
   updateCourse: (id: string, updates: Partial<Course>) => void;
@@ -44,6 +44,18 @@ interface MenuState {
   saveMenu: () => Promise<void>;
   setMenuPlanningComplete: (complete: boolean) => void;
   reset: () => void;
+}
+
+// Helper function to get the current user session
+async function getCurrentUserId(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const userId = session?.user?.id;
+  
+  if (!userId) {
+    throw new Error('User must be logged in');
+  }
+  
+  return userId;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -64,7 +76,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
-  setCourseCount: (count) => set({ courseCount: count }), // Implement setCourseCount method
+  setCourseCount: (count) => set({ courseCount: count }),
   addCourse: (course) =>
     set((state) => ({
       courses: [...state.courses, { ...course, id: crypto.randomUUID() }],
@@ -90,20 +102,13 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
-    // Get the current user session inside the async function instead of using the store directly
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-
-    if (!userId) {
-      toast.error('You must be logged in to generate recipes');
-      return;
-    }
-
     try {
+      // Make sure we have a menuId first
       if (!menuId) {
         await get().saveMenu();
       }
 
+      // Get the updated course with dbId
       const currentState = get();
       const updatedCourse = currentState.courses.find((c) => c.id === courseId);
       
@@ -112,6 +117,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return;
       }
 
+      // If the course doesn't have a dbId yet, try saving again
       if (!updatedCourse?.dbId) {
         await get().saveMenu();
         const retryState = get();
@@ -123,11 +129,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         }
       }
 
+      // Get the final course with dbId
       const finalCourse = get().courses.find((c) => c.id === courseId);
       if (!finalCourse?.dbId) {
         toast.error('Failed to save course. Please try again.');
         return;
       }
+
+      // Get the current user ID
+      const userId = await getCurrentUserId();
 
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
@@ -177,39 +187,22 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   generateMenu: async (prompt: string) => {
-    // Get the current user session inside the async function instead of using the store directly
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    
-    const { menuId, saveMenu, addCourse, name, guestCount, courseCount } = get();
-    
-    if (!userId) {
-      toast.error('You must be logged in to generate a menu');
-      return;
-    }
-
     try {
-      if (!menuId) {
+      // Get the menu ID first
+      const { saveMenu, addCourse, name, guestCount, courseCount } = get();
+      
+      // Make sure we have a menuId
+      if (!get().menuId) {
         await saveMenu();
       }
 
-      const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
-      The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
-      
-      IMPORTANT: 
-      - Use SPECIFIC dish names, not generic course types
-      - Include exactly ${courseCount} dishes total
-      - For example:
-        - Instead of "Appetizer", use something like "Garlic Butter Prawns" or "Mushroom Arancini Balls"
-        - Instead of "Main Course", use something like "Pan-seared Salmon with Lemon Butter" or "Braised Short Ribs"
-        - Instead of "Dessert", use something like "Chocolate Soufflé" or "Caramel Panna Cotta"
-      
-      Each dish name should be descriptive and appetizing.`;
+      // Get the current user ID
+      await getCurrentUserId();
 
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
           generateMenu: true,
-          prompt: menuThemePrompt,
+          prompt: prompt,
           menuName: name,
           guestCount: guestCount,
           courseCount: courseCount
@@ -225,10 +218,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         throw new Error('No menu data received');
       }
 
-      response.data.courses.forEach((courseName: string) => {
+      // Clear existing courses first
+      set({ courses: [] });
+
+      // Add the generated courses
+      response.data.courses.forEach((courseName: string, index: number) => {
         addCourse({
           title: courseName,
-          order: get().courses.length,
+          order: index,
         });
       });
 
@@ -240,18 +237,12 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   saveMenu: async () => {
-    const { name, guestCount, prepDays, courses, menuId } = get();
-    
-    // Get the current user session inside the async function instead of using the store directly
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
-    
-    if (!userId) {
-      toast.error('You must be logged in to save a menu');
-      return;
-    }
-    
     try {
+      const { name, guestCount, prepDays, courses, menuId } = get();
+      
+      // Get the current user ID
+      const userId = await getCurrentUserId();
+      
       let currentMenuId = menuId;
       const menuName = name.trim() || 'Untitled';
       
@@ -283,33 +274,36 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         if (updateError) throw updateError;
       }
 
-      const { error: deleteError } = await supabase
-        .from('courses')
-        .delete()
-        .eq('menu_id', currentMenuId);
+      // Only delete courses if we have some to replace them with
+      if (courses.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('courses')
+          .delete()
+          .eq('menu_id', currentMenuId);
 
-      if (deleteError) throw deleteError;
+        if (deleteError) throw deleteError;
 
-      const { data: savedCourses, error: coursesError } = await supabase
-        .from('courses')
-        .insert(
-          courses.map((course) => ({
-            menu_id: currentMenuId,
-            title: course.title,
-            order: course.order,
-          }))
-        )
-        .select();
+        const { data: savedCourses, error: coursesError } = await supabase
+          .from('courses')
+          .insert(
+            courses.map((course) => ({
+              menu_id: currentMenuId,
+              title: course.title,
+              order: course.order,
+            }))
+          )
+          .select();
 
-      if (coursesError) throw coursesError;
+        if (coursesError) throw coursesError;
 
-      if (savedCourses) {
-        set((state) => ({
-          courses: state.courses.map((course, index) => ({
-            ...course,
-            dbId: savedCourses[index].id,
-          })),
-        }));
+        if (savedCourses) {
+          set((state) => ({
+            courses: state.courses.map((course, index) => ({
+              ...course,
+              dbId: savedCourses[index].id,
+            })),
+          }));
+        }
       }
     } catch (error: any) {
       console.error('Menu save error:', error);
