@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -41,7 +40,7 @@ interface MenuState {
   reorderCourses: (courses: Course[]) => void;
   generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
   generateMenu: (prompt: string) => Promise<void>;
-  saveMenu: () => Promise<void>;
+  saveMenu: () => Promise<string | null>;
   setMenuPlanningComplete: (complete: boolean) => void;
   reset: () => void;
 }
