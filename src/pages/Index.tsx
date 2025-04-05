@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
@@ -25,7 +24,8 @@ const Index = () => {
     menuPlanningComplete,
     setMenuPlanningComplete,
     courseCount,
-    setCourseCount
+    setCourseCount,
+    reset
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -35,41 +35,32 @@ const Index = () => {
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
   const [desiredCourseCount, setDesiredCourseCount] = useState(courseCount || 3);
+  const [lastGeneratedName, setLastGeneratedName] = useState(name);
   
-  // Add a ref for the editing input
   const editingInputRef = useRef<HTMLInputElement>(null);
 
-  // Effect to handle clicks outside the editing input
   useEffect(() => {
-    // If we're not editing, there's no need for this effect
     if (!editingCourseId) return;
 
-    // Find the current course we're editing
     const currentCourse = courses.find(course => course.id === editingCourseId);
     
-    // Function to handle clicks outside the input
     const handleClickOutside = (event: MouseEvent) => {
       if (
         editingInputRef.current && 
         !editingInputRef.current.contains(event.target as Node)
       ) {
-        // If title hasn't changed, just exit edit mode
         if (currentCourse && editingTitle === currentCourse.title) {
           setEditingCourseId(null);
         } else if (editingTitle.trim()) {
-          // If title has changed and is not empty, save it
           saveEditing();
         } else {
-          // If empty, revert to original
           cancelEditing();
         }
       }
     };
 
-    // Add event listener
     document.addEventListener('mousedown', handleClickOutside);
     
-    // Clean up
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -111,10 +102,14 @@ const Index = () => {
     
     setGeneratingMenu(true);
     try {
-      // Create a prompt based on the menu name
+      if (courses.length > 0) {
+        reset();
+      }
+      
       const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
       await generateMenu(prompt);
       toast.success("Menu generated successfully!");
+      setLastGeneratedName(name);
     } catch (error) {
       console.error('Menu generation failed:', error);
       toast.error('Failed to generate menu. Please try again.');
@@ -170,6 +165,8 @@ const Index = () => {
     toast.success("Menu planning completed! You can now access other sections.");
   };
 
+  const isWandButtonActive = name.trim() && !generatingMenu && !menuPlanningComplete && name !== lastGeneratedName;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -201,7 +198,6 @@ const Index = () => {
             </Button>
           </div>
           
-          {/* Menu Details */}
           <div className="space-y-6 mb-8">
             <div>
               <label className="block text-sm font-medium mb-2">Menu Name</label>
@@ -209,7 +205,9 @@ const Index = () => {
                 <Input
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                  }}
                   placeholder="Enter menu name"
                   className="flex-grow"
                   disabled={menuPlanningComplete}
@@ -217,10 +215,10 @@ const Index = () => {
                 <Button
                   variant="outline"
                   size="icon"
-                  disabled={!name.trim() || generatingMenu || menuPlanningComplete}
+                  disabled={!isWandButtonActive}
                   onClick={handleGenerateMenu}
                   className={`transition-colors ${
-                    name.trim() && !menuPlanningComplete
+                    isWandButtonActive
                       ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
                       : 'text-gray-400 border-gray-200'
                   }`}
@@ -312,7 +310,6 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Courses */}
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Courses</h2>
             

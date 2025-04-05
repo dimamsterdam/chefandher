@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -90,7 +89,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
-    // Get the current user session inside the async function instead of using the store directly
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
@@ -183,11 +181,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   generateMenu: async (prompt: string) => {
-    // Get the current user session inside the async function instead of using the store directly
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
     
-    const { menuId, saveMenu, addCourse, name, guestCount, courseCount } = get();
+    const { saveMenu, addCourse, name, guestCount, courseCount } = get();
     
     if (!userId) {
       toast.error('You must be logged in to generate a menu');
@@ -195,9 +192,9 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
 
     try {
-      if (!menuId) {
-        await saveMenu();
-      }
+      set({ menuId: null });
+      
+      await saveMenu();
 
       const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
       The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
@@ -254,7 +251,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
     
-    // Get the current user session inside the async function instead of using the store directly
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
     
@@ -330,11 +326,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   reset: () => set({
-    name: '',
+    name: get().name,
     courses: [],
-    guestCount: 1,
-    prepDays: 1,
-    courseCount: 3,
+    guestCount: get().guestCount,
+    prepDays: get().prepDays,
+    courseCount: get().courseCount,
     menuId: null,
     menuPlanningComplete: false,
   }),
