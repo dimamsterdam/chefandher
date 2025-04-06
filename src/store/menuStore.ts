@@ -27,14 +27,16 @@ interface MenuState {
   name: string;
   guestCount: number;
   prepDays: number;
-  courseCount: number; // Added courseCount state
+  courseCount: number;
   courses: Course[];
   menuId: string | null;
   menuPlanningComplete: boolean;
+  menuGenerated: boolean; // Added state to track if menu was generated
+  originalMenuName: string; // Added state to store original menu name
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
-  setCourseCount: (count: number) => void; // Added setCourseCount method
+  setCourseCount: (count: number) => void;
   addCourse: (course: Omit<Course, 'id'>) => void;
   removeCourse: (id: string) => void;
   updateCourse: (id: string, updates: Partial<Course>) => void;
@@ -51,9 +53,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   courses: [],
   guestCount: 1,
   prepDays: 1,
-  courseCount: 3, // Default course count
+  courseCount: 3,
   menuId: null,
   menuPlanningComplete: false,
+  menuGenerated: false, // Initialize as false
+  originalMenuName: '', // Initialize as empty string
   setName: async (name) => {
     set({ name });
     try {
@@ -64,7 +68,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   setGuestCount: (count) => set({ guestCount: count }),
   setPrepDays: (days) => set({ prepDays: days }),
-  setCourseCount: (count) => set({ courseCount: count }), // Implement setCourseCount method
+  setCourseCount: (count) => set({ courseCount: count }),
   addCourse: (course) =>
     set((state) => ({
       courses: [...state.courses, { ...course, id: crypto.randomUUID() }],
@@ -225,11 +229,20 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         throw new Error('No menu data received');
       }
 
+      // Clear existing courses
+      set({ courses: [] });
+
       response.data.courses.forEach((courseName: string) => {
         addCourse({
           title: courseName,
           order: get().courses.length,
         });
+      });
+
+      // Set menuGenerated to true and store the original menu name
+      set({ 
+        menuGenerated: true,
+        originalMenuName: name
       });
 
       toast.success('Menu generated successfully!');
@@ -325,5 +338,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     courseCount: 3,
     menuId: null,
     menuPlanningComplete: false,
+    menuGenerated: false,
+    originalMenuName: '',
   }),
 }));

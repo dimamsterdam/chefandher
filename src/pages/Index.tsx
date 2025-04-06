@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
@@ -23,7 +22,9 @@ const Index = () => {
     updateCourse,
     generateMenu,
     menuPlanningComplete,
-    setMenuPlanningComplete
+    setMenuPlanningComplete,
+    menuGenerated,
+    originalMenuName
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -33,6 +34,8 @@ const Index = () => {
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
   const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
+
+  const shouldWandBeActive = !name.trim() || !menuGenerated || (menuGenerated && name !== originalMenuName);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -68,9 +71,26 @@ const Index = () => {
       return;
     }
     
+    if (menuGenerated && name !== originalMenuName && courses.length > 0) {
+      toast.warning("Generating a new menu will delete all existing courses. Continue?", {
+        action: {
+          label: "Continue",
+          onClick: () => generateNewMenu()
+        },
+        cancel: {
+          label: "Cancel",
+          onClick: () => {}
+        }
+      });
+      return;
+    }
+
+    generateNewMenu();
+  };
+
+  const generateNewMenu = async () => {
     setGeneratingMenu(true);
     try {
-      // Create a prompt based on the menu name
       const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
       await generateMenu(prompt);
       toast.success("Menu generated successfully!");
@@ -176,10 +196,10 @@ const Index = () => {
                 <Button
                   variant="outline"
                   size="icon"
-                  disabled={!name.trim() || generatingMenu || menuPlanningComplete}
+                  disabled={!shouldWandBeActive || generatingMenu || menuPlanningComplete}
                   onClick={handleGenerateMenu}
                   className={`transition-colors ${
-                    name.trim() && !menuPlanningComplete
+                    shouldWandBeActive && !menuPlanningComplete
                       ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
                       : 'text-gray-400 border-gray-200'
                   }`}
