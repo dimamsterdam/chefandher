@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -8,9 +9,12 @@ const corsHeaders = {
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
 
 function cleanJsonResponse(response: string): string {
+  console.log("Cleaning JSON response:", response);
+  
   // First, try to extract a JSON object if it's embedded in text
   const jsonObjectMatch = response.match(/\{[\s\S]*\}/);
   if (jsonObjectMatch) {
+    console.log("Found JSON object in response");
     return jsonObjectMatch[0].trim();
   }
   
@@ -20,6 +24,7 @@ function cleanJsonResponse(response: string): string {
     .replace(/```\s*$/m, '')            // Remove closing ```
     .trim();                            // Remove any extra whitespace
   
+  console.log("Cleaned response:", cleaned);
   return cleaned;
 }
 
@@ -56,7 +61,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         max_tokens: 1000,
       }
 
-      console.log('Request body:', JSON.stringify(requestBody, null, 2))
+      console.log('Request body:', JSON.stringify(requestBody))
 
       const response = await fetch(PERPLEXITY_API_URL, {
         method: 'POST',
@@ -68,10 +73,10 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       })
 
       const responseText = await response.text()
-      console.log(`Attempt ${attempt + 1} raw response:`, responseText)
+      console.log(`Attempt ${attempt + 1} raw response:`, responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
 
       if (!response.ok) {
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText.substring(0, 200)}...`)
       }
 
       let data
@@ -79,10 +84,10 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         data = JSON.parse(responseText)
       } catch (error) {
         console.error('Failed to parse API response:', error)
-        throw new Error(`Invalid JSON response: ${responseText}`)
+        throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}...`)
       }
 
-      console.log(`Attempt ${attempt + 1} parsed response:`, JSON.stringify(data, null, 2))
+      console.log(`Attempt ${attempt + 1} parsed response:`, JSON.stringify(data).substring(0, 500) + "...")
 
       if (!data.choices?.[0]?.message?.content) {
         throw new Error('Invalid API response structure')
@@ -90,7 +95,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
 
       // Clean the response content before parsing
       const cleanedContent = cleanJsonResponse(data.choices[0].message.content)
-      console.log(`Attempt ${attempt + 1} cleaned content:`, cleanedContent)
+      console.log(`Attempt ${attempt + 1} cleaned content:`, cleanedContent.substring(0, 500) + "...")
 
       let recipe
       try {
@@ -105,19 +110,19 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
           if (potentialJson) {
             try {
               recipe = JSON.parse(potentialJson[0]);
-              console.log(`Successfully extracted JSON on final attempt:`, JSON.stringify(recipe, null, 2));
+              console.log(`Successfully extracted JSON on final attempt:`, JSON.stringify(recipe))
             } catch (deepError) {
-              throw new Error(`Could not extract valid JSON: ${cleanedContent}`);
+              throw new Error(`Could not extract valid JSON: ${cleanedContent.substring(0, 200)}...`)
             }
           } else {
-            throw new Error(`Invalid recipe JSON: ${cleanedContent}`);
+            throw new Error(`Invalid recipe JSON: ${cleanedContent.substring(0, 200)}...`)
           }
         } else {
           throw error; // Re-throw for retry
         }
       }
 
-      console.log(`Attempt ${attempt + 1} parsed recipe:`, JSON.stringify(recipe, null, 2))
+      console.log(`Attempt ${attempt + 1} parsed recipe:`, JSON.stringify(recipe))
       
       // Validate all required fields are present and have correct types
       if (!recipe.title || typeof recipe.title !== 'string') {
@@ -130,13 +135,16 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
         throw new Error('Invalid instructions')
       }
       if (typeof recipe.prep_time_minutes !== 'number' || recipe.prep_time_minutes < 5 || recipe.prep_time_minutes > 180) {
-        throw new Error('Invalid prep_time_minutes')
+        console.log("Invalid prep time, fixing:", recipe.prep_time_minutes);
+        recipe.prep_time_minutes = 30; // Default to 30 minutes if invalid
       }
       if (typeof recipe.cook_time_minutes !== 'number' || recipe.cook_time_minutes < 5 || recipe.cook_time_minutes > 180) {
-        throw new Error('Invalid cook_time_minutes')
+        console.log("Invalid cook time, fixing:", recipe.cook_time_minutes);
+        recipe.cook_time_minutes = 45; // Default to 45 minutes if invalid
       }
       if (typeof recipe.servings !== 'number') {
-        throw new Error('Invalid servings')
+        console.log("Invalid servings, fixing:", recipe.servings);
+        recipe.servings = 4; // Default to 4 servings if invalid
       }
 
       console.log(`Attempt ${attempt + 1}: Recipe validation passed`)
@@ -194,7 +202,7 @@ async function generateMenuCoursesWithRecipes(prompt: string, guestCount: number
       max_tokens: 500,
     }
 
-    console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
+    console.log('Menu generation request body:', JSON.stringify(requestBody))
 
     const response = await fetch(PERPLEXITY_API_URL, {
       method: 'POST',
@@ -206,10 +214,10 @@ async function generateMenuCoursesWithRecipes(prompt: string, guestCount: number
     })
 
     const responseText = await response.text()
-    console.log('Menu generation raw response:', responseText)
+    console.log('Menu generation raw response:', responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""))
 
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText.substring(0, 200)}...`)
     }
 
     let data
@@ -217,7 +225,7 @@ async function generateMenuCoursesWithRecipes(prompt: string, guestCount: number
       data = JSON.parse(responseText)
     } catch (error) {
       console.error('Failed to parse API response:', error)
-      throw new Error(`Invalid JSON response: ${responseText}`)
+      throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}...`)
     }
 
     if (!data.choices?.[0]?.message?.content) {
@@ -290,12 +298,34 @@ async function generateMenuCoursesWithRecipes(prompt: string, guestCount: number
 }
 
 serve(async (req) => {
+  console.log("=== New recipe API request received ===");
+  console.log("Request headers:", req.headers);
+  
   if (req.method === 'OPTIONS') {
+    console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Check if PERPLEXITY_API_KEY is set
+    const apiKey = Deno.env.get('PERPLEXITY_API_KEY');
+    if (!apiKey) {
+      console.error("API Key is missing!");
+      return new Response(
+        JSON.stringify({ 
+          error: 'Missing API key',
+          details: 'PERPLEXITY_API_KEY is not configured',
+          timestamp: new Date().toISOString()
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
+    }
+    
     const body = await req.json();
+    console.log("Request body:", JSON.stringify(body));
     
     // Check if this is a menu generation request
     if (body.generateMenu) {
@@ -368,6 +398,8 @@ serve(async (req) => {
 
     // Force servings to match requested guest count
     recipe.servings = actualGuestCount;
+    
+    console.log("Successfully generated recipe:", JSON.stringify(recipe));
 
     return new Response(JSON.stringify(recipe), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

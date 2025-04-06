@@ -1,11 +1,16 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
+import { 
+  Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, 
+  BookOpen, Check, X, Wand2, CheckCircle2, AlertCircle 
+} from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const { 
@@ -20,13 +25,16 @@ const Index = () => {
     removeCourse,
     reorderCourses,
     generateRecipe,
+    loadRecipeForCourse,
     updateCourse,
     generateMenu,
     menuPlanningComplete,
     setMenuPlanningComplete,
     menuGenerated,
     originalMenuName,
-    isGeneratingFullMenu
+    isGeneratingFullMenu,
+    isLoadingRecipe,
+    lastError
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -36,8 +44,67 @@ const Index = () => {
   const [editingTitle, setEditingTitle] = useState("");
   const [generatingMenu, setGeneratingMenu] = useState(false);
   const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const shouldWandBeActive = !name.trim() || !menuGenerated || (menuGenerated && name !== originalMenuName);
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        setIsLoggedIn(!!data.session);
+        console.log("Auth status:", !!data.session ? "Logged in" : "Not logged in");
+      } catch (error) {
+        console.error("Auth check error:", error);
+        setIsLoggedIn(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
+  // Load recipes for courses that don't have recipes loaded
+  useEffect(() => {
+    const loadMissingRecipes = async () => {
+      // Only attempt to load recipes if user is logged in
+      if (!isLoggedIn) return;
+      
+      console.log("Checking for courses without recipes...");
+      
+      // Find courses that have dbId but no recipe
+      const coursesNeedingRecipes = courses.filter(course => course.dbId && !course.recipe);
+      
+      if (coursesNeedingRecipes.length === 0) {
+        console.log("All courses have recipes or no dbId");
+        return;
+      }
+      
+      console.log(`Found ${coursesNeedingRecipes.length} courses without recipes. Loading...`);
+      
+      // Load recipes for each course that needs one
+      for (const course of coursesNeedingRecipes) {
+        try {
+          console.log(`Attempting to load recipe for: ${course.title}`);
+          await loadRecipeForCourse(course.id);
+        } catch (error) {
+          console.error(`Failed to load recipe for ${course.title}:`, error);
+        }
+      }
+    };
+    
+    if (courses.length > 0) {
+      loadMissingRecipes();
+    }
+  }, [courses, isLoggedIn, loadRecipeForCourse]);
+
+  // Monitor for errors
+  useEffect(() => {
+    if (lastError) {
+      setErrorMessage(lastError);
+    }
+  }, [lastError]);
 
   const handleAddCourse = () => {
     if (!newCourseTitle.trim()) {
@@ -55,22 +122,50 @@ const Index = () => {
   const handleGenerateRecipe = async (courseId: string) => {
     if (generatingFor) return;
     
+    if (!isLoggedIn) {
+      toast.error("You must be logged in to generate recipes");
+      return;
+    }
+    
     setGeneratingFor(courseId);
+    setErrorMessage(null);
+    
     try {
       console.log(`Generating recipe for course ID: ${courseId}`);
       await generateRecipe(courseId, `Please adjust all ingredient quantities to serve ${guestCount} people.`);
       toast.success("Recipe generated successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Recipe generation failed:', error);
       toast.error('Failed to generate recipe. Please try again.');
+      setErrorMessage(error.message || "Failed to generate recipe");
     } finally {
       setGeneratingFor(null);
+    }
+  };
+
+  const handleRetryLoadRecipe = async (courseId: string) => {
+    if (isLoadingRecipe) return;
+    
+    setErrorMessage(null);
+    
+    try {
+      console.log(`Attempting to load existing recipe for course ID: ${courseId}`);
+      await loadRecipeForCourse(courseId);
+    } catch (error: any) {
+      console.error('Recipe loading failed:', error);
+      toast.error('Failed to load recipe. Please try again.');
+      setErrorMessage(error.message || "Failed to load recipe");
     }
   };
 
   const handleGenerateMenu = async () => {
     if (!name.trim()) {
       toast.error("Please enter a menu name first");
+      return;
+    }
+    
+    if (!isLoggedIn) {
+      toast.error("You must be logged in to generate a menu");
       return;
     }
     
@@ -93,6 +188,8 @@ const Index = () => {
 
   const generateNewMenu = async () => {
     setGeneratingMenu(true);
+    setErrorMessage(null);
+    
     try {
       const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
       
@@ -104,9 +201,10 @@ const Index = () => {
       
       await generateMenu(prompt);
       toast.success("Menu and recipes generated successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Menu generation failed:', error);
       toast.error('Failed to generate menu. Please try again.');
+      setErrorMessage(error.message || "Failed to generate menu");
     } finally {
       setGeneratingMenu(false);
     }
@@ -166,7 +264,21 @@ const Index = () => {
   };
 
   // For debugging
+  console.log('Authentication status:', isLoggedIn ? 'Logged in' : 'Not logged in');
   console.log('Courses:', courses);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
+        <div className="glass rounded-xl p-8 max-w-md mx-auto text-center">
+          <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-4">Authentication Required</h1>
+          <p className="mb-6 text-gray-600">You must be logged in to plan menus and generate recipes.</p>
+          <Button onClick={() => window.location.href = '/auth'}>Go to Login</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -198,6 +310,14 @@ const Index = () => {
               )}
             </Button>
           </div>
+          
+          {errorMessage && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
           
           {/* Menu Details */}
           <div className="space-y-6 mb-8">
@@ -330,7 +450,8 @@ const Index = () => {
                   // Check if course has a recipe and log for debugging
                   console.log(`Course ${course.id}: ${course.title}`, 
                               `Has recipe: ${Boolean(course.recipe)}`, 
-                              course.recipe ? "Recipe found" : "No recipe");
+                              course.recipe ? "Recipe found" : "No recipe",
+                              `DbId: ${course.dbId}`);
                   
                   return (
                     <Reorder.Item
@@ -411,6 +532,11 @@ const Index = () => {
                                   Recipe Ready
                                 </span>
                               )}
+                              {!course.recipe && course.dbId && (
+                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full ml-2">
+                                  Recipe Missing
+                                </span>
+                              )}
                             </div>
                             
                             {course.recipe && !menuPlanningComplete && (
@@ -423,6 +549,17 @@ const Index = () => {
                                 {openRecipe === course.id ? 'Hide Recipe' : 'View Recipe'}
                               </Button>
                             )}
+                            
+                            {!course.recipe && course.dbId && !menuPlanningComplete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRetryLoadRecipe(course.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                              >
+                                {isLoadingRecipe ? 'Loading...' : 'Retry Loading'}
+                              </Button>
+                            )}
                           </div>
                         )}
                         <div className="flex items-center gap-2">
@@ -432,18 +569,18 @@ const Index = () => {
                                 variant="outline"
                                 size="icon"
                                 onClick={() => handleGenerateRecipe(course.id)}
-                                disabled={!!generatingFor || isGeneratingFullMenu}
+                                disabled={!!generatingFor || isGeneratingFullMenu || isLoadingRecipe}
                                 className={`relative ${
                                   course.recipe 
                                     ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
                                     : ''
                                 } ${
-                                  generatingFor === course.id 
+                                  generatingFor === course.id || (isLoadingRecipe && course.id === openRecipe)
                                     ? 'bg-purple-50' 
                                     : ''
                                 }`}
                               >
-                                {generatingFor === course.id ? (
+                                {generatingFor === course.id || (isLoadingRecipe && course.id === openRecipe) ? (
                                   <>
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                     <span className="sr-only">Generating recipe...</span>
@@ -459,7 +596,7 @@ const Index = () => {
                                 size="icon"
                                 onClick={() => removeCourse(course.id)}
                                 className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                disabled={generatingFor === course.id || isGeneratingFullMenu}
+                                disabled={generatingFor === course.id || isGeneratingFullMenu || isLoadingRecipe}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
