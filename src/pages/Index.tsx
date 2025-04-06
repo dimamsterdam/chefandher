@@ -130,6 +130,11 @@ const Index = () => {
     setEditingTitle("");
   };
 
+  const handleCourseClick = (courseId: string) => {
+    if (editingCourseId) return; // Don't toggle if we're editing
+    setOpenRecipe(openRecipe === courseId ? null : courseId);
+  };
+
   const handleCompleteMenuPlanning = () => {
     if (courses.length === 0) {
       toast.error("Please add at least one course before completing menu planning");
@@ -320,7 +325,9 @@ const Index = () => {
                   <Reorder.Item
                     key={course.id}
                     value={course}
-                    className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
+                    className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} transition-colors ${
+                      course.recipe ? 'bg-purple-50/50 hover:bg-purple-100/60' : ''
+                    }`}
                     dragListener={!menuPlanningComplete}
                   >
                     <div className="flex items-center space-x-4">
@@ -358,24 +365,56 @@ const Index = () => {
                           </Button>
                         </div>
                       ) : (
-                        <span 
-                          className={`flex-grow font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
-                          onClick={() => !menuPlanningComplete && startEditing(course)}
+                        <div 
+                          className={`flex-grow flex items-center gap-2 ${
+                            !menuPlanningComplete ? 'cursor-pointer group' : ''
+                          }`}
                         >
-                          {course.title}
-                        </span>
+                          <span 
+                            className={`flex-grow font-medium ${
+                              course.recipe 
+                                ? 'text-purple-800 flex items-center gap-2' 
+                                : ''
+                            } ${
+                              !menuPlanningComplete && !course.recipe
+                                ? 'hover:text-purple-600'
+                                : !menuPlanningComplete 
+                                  ? 'hover:text-purple-900'
+                                  : ''
+                            }`}
+                            onClick={() => !menuPlanningComplete && course.recipe && handleCourseClick(course.id)}
+                            onDoubleClick={() => !menuPlanningComplete && startEditing(course)}
+                          >
+                            {course.recipe && (
+                              <BookOpen 
+                                className={`h-4 w-4 ${
+                                  openRecipe === course.id 
+                                    ? 'text-purple-700' 
+                                    : 'text-purple-600'
+                                }`}
+                              />
+                            )}
+                            {course.title}
+                            {course.recipe && (
+                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                                Recipe Ready
+                              </span>
+                            )}
+                          </span>
+                          
+                          {course.recipe && !menuPlanningComplete && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCourseClick(course.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                            >
+                              {openRecipe === course.id ? 'Hide Recipe' : 'View Recipe'}
+                            </Button>
+                          )}
+                        </div>
                       )}
                       <div className="flex items-center gap-2">
-                        {course.recipe && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setOpenRecipe(openRecipe === course.id ? null : course.id)}
-                            className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-                          >
-                            <BookOpen className="h-4 w-4" />
-                          </Button>
-                        )}
                         {!menuPlanningComplete && (
                           <>
                             <Button
@@ -424,7 +463,7 @@ const Index = () => {
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="mt-4 pt-4 border-t"
+                        className="mt-4 pt-4 border-t border-purple-100"
                       >
                         <div className="space-y-4">
                           <div>
