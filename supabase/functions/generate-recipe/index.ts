@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -155,7 +154,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   throw lastError || new Error('Failed to generate recipe after all retries')
 }
 
-async function generateMenuCourses(prompt: string, guestCount: number, courseCount: number): Promise<string[]> {
+async function generateMenuCoursesWithRecipes(prompt: string, guestCount: number, courseCount: number): Promise<any[]> {
   try {
     const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
     if (!apiKey) {
@@ -164,14 +163,13 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
-    // Update the system prompt to explicitly require a dessert as the last course
     const requestBody = {
       model: 'llama-3.1-sonar-large-128k-online',
       messages: [
         { 
           role: 'system', 
           content: `You are a professional chef that creates elegant, sophisticated menus.
-          You will respond with ONLY a simple JSON array of specific dish names (NOT course types).
+          You will respond with ONLY a simple JSON array of dish names (NOT course types).
           Do not include any markdown, just return the raw JSON array.
           
           Example response: ["Truffle Risotto with Wild Mushrooms", "Herb-crusted Rack of Lamb", "Chocolate Soufflé with Vanilla Bean Ice Cream"]
@@ -230,9 +228,9 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
     const cleanedContent = cleanJsonResponse(data.choices[0].message.content)
     console.log('Cleaned menu content:', cleanedContent)
 
-    let courses
+    let courseNames
     try {
-      courses = JSON.parse(cleanedContent)
+      courseNames = JSON.parse(cleanedContent)
     } catch (error) {
       // If parsing fails, try to extract the array from the text
       console.error('Failed to parse courses JSON, trying to extract array:', error)
@@ -241,8 +239,8 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
       const arrayMatch = cleanedContent.match(/\[.*\]/s);
       if (arrayMatch) {
         try {
-          courses = JSON.parse(arrayMatch[0]);
-          console.log('Extracted array from text:', courses);
+          courseNames = JSON.parse(arrayMatch[0]);
+          console.log('Extracted array from text:', courseNames);
         } catch (extractError) {
           console.error('Failed to extract array:', extractError);
           throw new Error(`Could not parse courses from response: ${cleanedContent}`);
@@ -252,20 +250,20 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
       }
     }
 
-    if (!Array.isArray(courses)) {
+    if (!Array.isArray(courseNames)) {
       throw new Error('Courses must be an array')
     }
     
     // Verify that we have at least one course that looks like a dessert
     // If not, replace the last course with a default dessert option
-    const lastCourse = courses[courses.length - 1].toLowerCase();
+    const lastCourse = courseNames[courseNames.length - 1].toLowerCase();
     const dessertKeywords = ['cake', 'tart', 'pudding', 'soufflé', 'ice cream', 'sorbet', 'mousse', 
                            'crème', 'chocolate', 'panna cotta', 'tiramisu', 'cheesecake', 'dessert',
                            'brûlée', 'custard', 'pie', 'sweet', 'caramel'];
     
     const isDessert = dessertKeywords.some(keyword => lastCourse.includes(keyword.toLowerCase()));
     
-    if (!isDessert && courses.length > 0) {
+    if (!isDessert && courseNames.length > 0) {
       console.log('Last course does not appear to be a dessert, replacing with dessert option');
       // Replace the last course with a dessert that matches the theme
       const dessertOptions = [
@@ -275,63 +273,68 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
         "Tiramisu with Espresso-Soaked Ladyfingers",
         "Warm Apple Tart with Vanilla Ice Cream"
       ];
-      courses[courses.length - 1] = dessertOptions[Math.floor(Math.random() * dessertOptions.length)];
+      courseNames[courseNames.length - 1] = dessertOptions[Math.floor(Math.random() * dessertOptions.length)];
     }
 
-    console.log('Generated menu courses:', courses)
-    return courses
+    // Convert course names to course objects with titles
+    const coursesWithTitles = courseNames.map(title => ({
+      title,
+    }));
+
+    console.log('Generated menu courses:', coursesWithTitles);
+    return coursesWithTitles;
   } catch (error) {
-    console.error('Menu generation error:', error)
-    throw error
+    console.error('Menu generation error:', error);
+    throw error;
   }
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json()
+    const body = await req.json();
     
     // Check if this is a menu generation request
     if (body.generateMenu) {
-      console.log('Menu generation request:', body)
+      console.log('Menu generation request:', body);
       
-      const { prompt, menuName, guestCount, courseCount } = body
+      const { prompt, menuName, guestCount, courseCount, generateRecipes } = body;
       
       if (!prompt) {
-        throw new Error('Menu prompt is required')
+        throw new Error('Menu prompt is required');
       }
       
       // Use provided guestCount or default to 4
-      const guests = guestCount ? Number(guestCount) : 4
+      const guests = guestCount ? Number(guestCount) : 4;
       
       // Use provided courseCount or default to 3
-      const courses = courseCount ? Number(courseCount) : 3
+      const courses = courseCount ? Number(courseCount) : 3;
       
       // Generate menu courses
-      const menuCourses = await generateMenuCourses(prompt, guests, courses)
+      const menuCourses = await generateMenuCoursesWithRecipes(prompt, guests, courses);
       
       return new Response(JSON.stringify({ courses: menuCourses }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
-      })
+      });
     }
     
     // Otherwise, handle as a recipe generation request
-    const { courseTitle, guestCount, requirements } = body
-    console.log('Generating recipe for:', { courseTitle, guestCount, requirements })
+    const { courseTitle, guestCount, requirements } = body;
+    console.log('Generating recipe for:', { courseTitle, guestCount, requirements });
 
     if (!courseTitle || courseTitle === 'undefined') {
-      throw new Error('Course title is required')
+      throw new Error('Course title is required');
     }
     
     if (!guestCount || isNaN(Number(guestCount))) {
-      throw new Error('Valid guest count is required')
+      throw new Error('Valid guest count is required');
     }
 
-    const actualGuestCount = Number(guestCount)
+    const actualGuestCount = Number(guestCount);
 
     const prompt = `Create a recipe for ${courseTitle} that serves ${actualGuestCount} people.
     ${requirements ? `Additional requirements: ${requirements}` : ''}
@@ -359,19 +362,19 @@ serve(async (req) => {
     4. ingredients and instructions must be non-empty arrays of strings
     5. servings must equal ${actualGuestCount}
     6. DO NOT include any text outside the JSON object
-    7. DO NOT wrap the response in markdown code blocks`
+    7. DO NOT wrap the response in markdown code blocks`;
 
-    const recipe = await generateRecipeWithRetry(prompt)
+    const recipe = await generateRecipeWithRetry(prompt);
 
     // Force servings to match requested guest count
-    recipe.servings = actualGuestCount
+    recipe.servings = actualGuestCount;
 
     return new Response(JSON.stringify(recipe), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
-    })
+    });
   } catch (error) {
-    console.error('Error in generate-recipe function:', error)
+    console.error('Error in generate-recipe function:', error);
     return new Response(
       JSON.stringify({ 
         error: 'Failed to generate recipe', 
@@ -382,6 +385,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 
       }
-    )
+    );
   }
-})
+});
