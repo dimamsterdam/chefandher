@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -205,6 +204,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(15000), // Add a timeout of 15 seconds
     })
 
     const responseText = await response.text()
@@ -310,13 +310,28 @@ serve(async (req) => {
       // Use provided courseCount or default to 3
       const courses = courseCount ? Number(courseCount) : 3
       
-      // Generate menu courses
-      const menuCourses = await generateMenuCourses(prompt, guests, courses)
-      
-      return new Response(JSON.stringify({ courses: menuCourses }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      })
+      try {
+        // Generate menu courses with a timeout
+        const menuCourses = await generateMenuCourses(prompt, guests, courses)
+        
+        return new Response(JSON.stringify({ courses: menuCourses }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        })
+      } catch (error: any) {
+        console.error('Menu generation failed:', error)
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to generate menu',
+            details: error.message,
+            timestamp: new Date().toISOString()
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          }
+        )
+      }
     }
     
     // Otherwise, handle as a recipe generation request
