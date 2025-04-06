@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -163,6 +164,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
+    // Update the system prompt to explicitly require a dessert as the last course
     const requestBody = {
       model: 'llama-3.1-sonar-large-128k-online',
       messages: [
@@ -178,7 +180,8 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
           - Each dish name should be specific, descriptive, and appetizing
           - Include EXACTLY ${courseCount} dishes appropriate for the requested menu theme
           - Do not use generic terms like "Appetizer", "Main Course", or "Dessert"
-          - Always include at least one specific dessert at the end of the menu
+          - THE LAST DISH MUST ALWAYS BE A DESSERT (e.g., "Lemon Tart with Fresh Berries", "Tiramisu", "Crème Brûlée")
+          - All other courses should be savory dishes (appetizers, mains, sides)
           - Each dish name should be elegant and sophisticated (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" NOT just "Scallops")
           - Do not include numbers or other prefixes in the dish names
           - DO NOT wrap the response in code blocks or any other formatting
@@ -251,6 +254,28 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     if (!Array.isArray(courses)) {
       throw new Error('Courses must be an array')
+    }
+    
+    // Verify that we have at least one course that looks like a dessert
+    // If not, replace the last course with a default dessert option
+    const lastCourse = courses[courses.length - 1].toLowerCase();
+    const dessertKeywords = ['cake', 'tart', 'pudding', 'soufflé', 'ice cream', 'sorbet', 'mousse', 
+                           'crème', 'chocolate', 'panna cotta', 'tiramisu', 'cheesecake', 'dessert',
+                           'brûlée', 'custard', 'pie', 'sweet', 'caramel'];
+    
+    const isDessert = dessertKeywords.some(keyword => lastCourse.includes(keyword.toLowerCase()));
+    
+    if (!isDessert && courses.length > 0) {
+      console.log('Last course does not appear to be a dessert, replacing with dessert option');
+      // Replace the last course with a dessert that matches the theme
+      const dessertOptions = [
+        "Classic Vanilla Bean Crème Brûlée",
+        "Dark Chocolate Mousse with Fresh Berries",
+        "Lemon Tart with Raspberry Coulis",
+        "Tiramisu with Espresso-Soaked Ladyfingers",
+        "Warm Apple Tart with Vanilla Ice Cream"
+      ];
+      courses[courses.length - 1] = dessertOptions[Math.floor(Math.random() * dessertOptions.length)];
     }
 
     console.log('Generated menu courses:', courses)
