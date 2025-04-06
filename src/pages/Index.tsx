@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2 } from "lucide-react";
@@ -24,7 +25,8 @@ const Index = () => {
     menuPlanningComplete,
     setMenuPlanningComplete,
     menuGenerated,
-    originalMenuName
+    originalMenuName,
+    isGeneratingFullMenu
   } = useMenuStore();
   
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -92,8 +94,15 @@ const Index = () => {
     setGeneratingMenu(true);
     try {
       const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
+      
+      // Show an initial toast message
+      toast.message("Generating your complete menu and recipes...", {
+        description: "This could take a minute or two. Please wait.",
+        duration: 10000,
+      });
+      
       await generateMenu(prompt);
-      toast.success("Menu generated successfully!");
+      toast.success("Menu and recipes generated successfully!");
     } catch (error) {
       console.error('Menu generation failed:', error);
       toast.error('Failed to generate menu. Please try again.');
@@ -164,7 +173,7 @@ const Index = () => {
               onClick={handleCompleteMenuPlanning}
               variant={menuPlanningComplete ? "outline" : "default"}
               className={menuPlanningComplete ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : ""}
-              disabled={courses.length === 0 || !name.trim() || generatingMenu}
+              disabled={courses.length === 0 || !name.trim() || generatingMenu || isGeneratingFullMenu}
             >
               {menuPlanningComplete ? (
                 <>
@@ -191,26 +200,29 @@ const Index = () => {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter menu name"
                   className="flex-grow"
-                  disabled={menuPlanningComplete}
+                  disabled={menuPlanningComplete || isGeneratingFullMenu}
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  disabled={!shouldWandBeActive || generatingMenu || menuPlanningComplete}
+                  disabled={!shouldWandBeActive || generatingMenu || menuPlanningComplete || isGeneratingFullMenu}
                   onClick={handleGenerateMenu}
                   className={`transition-colors ${
-                    shouldWandBeActive && !menuPlanningComplete
+                    shouldWandBeActive && !menuPlanningComplete && !isGeneratingFullMenu
                       ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
                       : 'text-gray-400 border-gray-200'
                   }`}
                 >
-                  {generatingMenu ? (
+                  {generatingMenu || isGeneratingFullMenu ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Wand2 className="h-4 w-4" />
                   )}
                 </Button>
               </div>
+              {isGeneratingFullMenu && (
+                <p className="mt-2 text-sm text-purple-600">Generating your complete menu with recipes...</p>
+              )}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -221,7 +233,7 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
-                    disabled={menuPlanningComplete}
+                    disabled={menuPlanningComplete || isGeneratingFullMenu}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
@@ -230,7 +242,7 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setGuestCount(guestCount + 1)}
-                    disabled={menuPlanningComplete}
+                    disabled={menuPlanningComplete || isGeneratingFullMenu}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -244,7 +256,7 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setDesiredCourseCount(Math.max(1, desiredCourseCount - 1))}
-                    disabled={menuPlanningComplete}
+                    disabled={menuPlanningComplete || isGeneratingFullMenu}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
@@ -253,7 +265,7 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setDesiredCourseCount(desiredCourseCount + 1)}
-                    disabled={menuPlanningComplete}
+                    disabled={menuPlanningComplete || isGeneratingFullMenu}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -267,7 +279,7 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setPrepDays(Math.max(1, prepDays - 1))}
-                    disabled={menuPlanningComplete}
+                    disabled={menuPlanningComplete || isGeneratingFullMenu}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
@@ -276,7 +288,7 @@ const Index = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => setPrepDays(prepDays + 1)}
-                    disabled={menuPlanningComplete}
+                    disabled={menuPlanningComplete || isGeneratingFullMenu}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -289,157 +301,175 @@ const Index = () => {
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Courses</h2>
             
-            <Reorder.Group 
-              axis="y" 
-              values={courses} 
-              onReorder={menuPlanningComplete ? undefined : reorderCourses}
-              className="space-y-4"
-            >
-              {courses.map((course) => (
-                <Reorder.Item
-                  key={course.id}
-                  value={course}
-                  className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
-                  dragListener={!menuPlanningComplete}
-                >
-                  <div className="flex items-center space-x-4">
-                    {!menuPlanningComplete && (
-                      <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    )}
-                    {editingCourseId === course.id ? (
-                      <div className="flex-grow flex items-center gap-2">
-                        <Input
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          className="flex-grow"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              saveEditing();
-                            }
-                          }}
-                          autoFocus
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={saveEditing}
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={cancelEditing}
-                          className="text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span 
-                        className={`flex-grow font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
-                        onClick={() => !menuPlanningComplete && startEditing(course)}
-                      >
-                        {course.title}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {course.recipe && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setOpenRecipe(openRecipe === course.id ? null : course.id)}
-                          className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-                        >
-                          <BookOpen className="h-4 w-4" />
-                        </Button>
-                      )}
+            {isGeneratingFullMenu ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
+                <div>
+                  <p className="text-lg font-medium">Generating your complete menu</p>
+                  <p className="text-sm text-gray-500 mt-1">This may take a minute or two...</p>
+                </div>
+              </div>
+            ) : courses.length > 0 ? (
+              <Reorder.Group 
+                axis="y" 
+                values={courses} 
+                onReorder={menuPlanningComplete ? undefined : reorderCourses}
+                className="space-y-4"
+              >
+                {courses.map((course) => (
+                  <Reorder.Item
+                    key={course.id}
+                    value={course}
+                    className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
+                    dragListener={!menuPlanningComplete}
+                  >
+                    <div className="flex items-center space-x-4">
                       {!menuPlanningComplete && (
-                        <>
+                        <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                      {editingCourseId === course.id ? (
+                        <div className="flex-grow flex items-center gap-2">
+                          <Input
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            className="flex-grow"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                saveEditing();
+                              }
+                            }}
+                            autoFocus
+                          />
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            onClick={() => handleGenerateRecipe(course.id)}
-                            disabled={!!generatingFor}
-                            className={`relative ${
-                              course.recipe 
-                                ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
-                                : ''
-                            } ${
-                              generatingFor === course.id 
-                                ? 'bg-purple-50' 
-                                : ''
-                            }`}
+                            onClick={saveEditing}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
                           >
-                            {generatingFor === course.id ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="sr-only">Generating recipe...</span>
-                              </>
-                            ) : course.recipe ? (
-                              <RefreshCw className="h-4 w-4" />
-                            ) : (
-                              <ChefHat className="h-4 w-4" />
-                            )}
+                            <Check className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeCourse(course.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            disabled={generatingFor === course.id}
+                            onClick={cancelEditing}
+                            className="text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <X className="h-4 w-4" />
                           </Button>
-                        </>
+                        </div>
+                      ) : (
+                        <span 
+                          className={`flex-grow font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
+                          onClick={() => !menuPlanningComplete && startEditing(course)}
+                        >
+                          {course.title}
+                        </span>
                       )}
-                    </div>
-                  </div>
-
-                  {course.recipe && openRecipe === course.id && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="mt-4 pt-4 border-t"
-                    >
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="font-medium mb-2 text-gray-700">Ingredients:</h4>
-                          <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                            {course.recipe.ingredients.map((ingredient, idx) => (
-                              <li key={idx}>{ingredient}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h4 className="font-medium mb-2 text-gray-700">Instructions:</h4>
-                          <ol className="list-decimal pl-5 space-y-2 text-gray-600">
-                            {course.recipe.instructions.map((instruction, idx) => (
-                              <li key={idx}>{instruction}</li>
-                            ))}
-                          </ol>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                          <div>
-                            <span className="font-medium">Prep Time:</span>{" "}
-                            {course.recipe.prep_time_minutes} minutes
-                          </div>
-                          <div>
-                            <span className="font-medium">Cook Time:</span>{" "}
-                            {course.recipe.cook_time_minutes} minutes
-                          </div>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        {course.recipe && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setOpenRecipe(openRecipe === course.id ? null : course.id)}
+                            className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
+                          >
+                            <BookOpen className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {!menuPlanningComplete && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleGenerateRecipe(course.id)}
+                              disabled={!!generatingFor || isGeneratingFullMenu}
+                              className={`relative ${
+                                course.recipe 
+                                  ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
+                                  : ''
+                              } ${
+                                generatingFor === course.id 
+                                  ? 'bg-purple-50' 
+                                  : ''
+                              }`}
+                            >
+                              {generatingFor === course.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span className="sr-only">Generating recipe...</span>
+                                </>
+                              ) : course.recipe ? (
+                                <RefreshCw className="h-4 w-4" />
+                              ) : (
+                                <ChefHat className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeCourse(course.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              disabled={generatingFor === course.id || isGeneratingFullMenu}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
-                    </motion.div>
-                  )}
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
+                    </div>
 
-            {!menuPlanningComplete && (
+                    {course.recipe && openRecipe === course.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="mt-4 pt-4 border-t"
+                      >
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-medium mb-2 text-gray-700">Ingredients:</h4>
+                            <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                              {course.recipe.ingredients.map((ingredient, idx) => (
+                                <li key={idx}>{ingredient}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div>
+                            <h4 className="font-medium mb-2 text-gray-700">Instructions:</h4>
+                            <ol className="list-decimal pl-5 space-y-2 text-gray-600">
+                              {course.recipe.instructions.map((instruction, idx) => (
+                                <li key={idx}>{instruction}</li>
+                              ))}
+                            </ol>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                            <div>
+                              <span className="font-medium">Prep Time:</span>{" "}
+                              {course.recipe.prep_time_minutes} minutes
+                            </div>
+                            <div>
+                              <span className="font-medium">Cook Time:</span>{" "}
+                              {course.recipe.cook_time_minutes} minutes
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center bg-gray-50 rounded-lg">
+                <Wand2 className="h-12 w-12 text-gray-400" />
+                <div>
+                  <p className="text-lg font-medium">No courses yet</p>
+                  <p className="text-sm text-gray-500 mt-1">Enter a menu name and click the magic wand to generate a complete menu with recipes</p>
+                </div>
+              </div>
+            )}
+
+            {!menuPlanningComplete && !isGeneratingFullMenu && (
               <div className="flex space-x-2">
                 <Input
                   type="text"

@@ -31,8 +31,9 @@ interface MenuState {
   courses: Course[];
   menuId: string | null;
   menuPlanningComplete: boolean;
-  menuGenerated: boolean; // Added state to track if menu was generated
-  originalMenuName: string; // Added state to store original menu name
+  menuGenerated: boolean;
+  originalMenuName: string;
+  isGeneratingFullMenu: boolean;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
@@ -56,8 +57,9 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   courseCount: 3,
   menuId: null,
   menuPlanningComplete: false,
-  menuGenerated: false, // Initialize as false
-  originalMenuName: '', // Initialize as empty string
+  menuGenerated: false,
+  originalMenuName: '',
+  isGeneratingFullMenu: false,
   setName: async (name) => {
     set({ name });
     try {
@@ -193,6 +195,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
 
     try {
+      set({ isGeneratingFullMenu: true });
+      
       if (!menuId) {
         await saveMenu();
       }
@@ -213,6 +217,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const response = await supabase.functions.invoke('generate-recipe', {
         body: {
           generateMenu: true,
+          generateRecipes: true, // New flag to also generate recipes
           prompt: menuThemePrompt,
           menuName: name,
           guestCount: guestCount,
@@ -232,23 +237,52 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       // Clear existing courses
       set({ courses: [] });
 
-      response.data.courses.forEach((courseName: string) => {
+      // Add new courses with recipes if available
+      const coursesWithRecipes = response.data.courses;
+      const recipePromises: Promise<void>[] = [];
+
+      // First add all courses
+      coursesWithRecipes.forEach((courseData: any) => {
         addCourse({
-          title: courseName,
+          title: courseData.title,
           order: get().courses.length,
         });
       });
+      
+      // Save the menu to get database IDs for courses
+      await get().saveMenu();
+      
+      // Now that we have database IDs for courses, add recipes
+      const currentState = get();
+      const currentCourses = currentState.courses;
+      
+      // Process each course to add its recipe
+      for (let i = 0; i < currentCourses.length; i++) {
+        const course = currentCourses[i];
+        const courseData = coursesWithRecipes[i];
+        
+        if (courseData.recipe) {
+          try {
+            await get().generateRecipe(course.id);
+          } catch (error) {
+            console.error(`Failed to generate recipe for ${course.title}:`, error);
+            // Continue with other recipes even if one fails
+          }
+        }
+      }
 
       // Set menuGenerated to true and store the original menu name
       set({ 
         menuGenerated: true,
-        originalMenuName: name
+        originalMenuName: name,
+        isGeneratingFullMenu: false
       });
 
-      toast.success('Menu generated successfully!');
+      toast.success('Menu and recipes generated successfully!');
     } catch (error: any) {
       console.error('Menu generation error:', error);
       toast.error(error.message || 'Failed to generate menu');
+      set({ isGeneratingFullMenu: false });
       throw error;
     }
   },
@@ -340,5 +374,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     menuPlanningComplete: false,
     menuGenerated: false,
     originalMenuName: '',
+    isGeneratingFullMenu: false,
   }),
 }));
