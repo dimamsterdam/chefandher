@@ -430,7 +430,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       lastError: null
     });
 
-    toast.success('Menu and recipes generated successfully!');
+    toast({
+      title: "Success",
+      description: "Menu and recipes generated successfully!",
+      variant: "default",
+    });
   },
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
@@ -439,7 +443,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     const userId = session?.user?.id;
     
     if (!userId) {
-      toast.error('You must be logged in to save a menu');
+      toast({
+        title: "Error",
+        description: "You must be logged in to save a menu",
+        variant: "destructive",
+      });
       return;
     }
     
@@ -524,7 +532,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       }
     } catch (error: any) {
       console.error('Menu save error:', error);
-      toast.error(error.message || 'Failed to save menu');
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to save menu',
+        variant: "destructive",
+      });
       throw error;
     }
   },
