@@ -2,10 +2,68 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://pphkyhrdfcceeuwgeqgu.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwaGt5aHJkZmNjZWV1d2dlcWd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg3NTA2NTUsImV4cCI6MjA1NDMyNjY1NX0.RGfDegWptQst27i3RRcFQTagjmvA3vm9XCo8jG9Wn6o";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+console.log('Supabase URL:', supabaseUrl);
+console.log('Supabase Key present:', !!supabaseAnonKey);
+
+// Custom storage implementation with logging
+const storage = {
+  getItem: (key: string) => {
+    const value = localStorage.getItem(key);
+    // console.log(`Getting item from storage: ${key}`, value); // Keep storage simple
+    return value;
+  },
+  setItem: (key: string, value: string) => {
+    // console.log(`Setting item in storage: ${key}`, value);
+    localStorage.setItem(key, value);
+  },
+  removeItem: (key: string) => {
+    // console.log(`Removing item from storage: ${key}`);
+    localStorage.removeItem(key);
+  },
+};
+
+// Create Supabase client with custom storage
+const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+  db: {
+    schema: 'public',
+  },
+  // global: {
+  //   headers: {
+  //     'x-application-name': 'chefandher',
+  //   },
+  // },
+});
+
+// Log initial session state (optional, can be removed if causing issues)
+supabaseClient.auth.getSession().then(({ data: { session }, error }) => {
+  console.log('Initial session state check (client.ts):', { session, error });
+});
+
+// No fetch override
+
+// No .from override
+
+// No explicit connection test here, rely on ProtectedRoute
+
+// Keep global error handler for now
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[FATAL] Unhandled promise rejection:', event.reason);
+});
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = supabaseClient;

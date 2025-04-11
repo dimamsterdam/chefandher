@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions'
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
 
 function cleanJsonResponse(response: string): string {
   // First, try to extract a JSON object if it's embedded in text
@@ -29,13 +29,13 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempt ${attempt + 1}: Starting recipe generation`)
-      const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+      const apiKey = Deno.env.get('OPENAI_API_KEY')
       if (!apiKey) {
-        throw new Error('PERPLEXITY_API_KEY is not set')
+        throw new Error('OPENAI_API_KEY is not set')
       }
 
       const requestBody = {
-        model: 'llama-3.1-sonar-large-128k-online',
+        model: 'gpt-4',
         messages: [
           { 
             role: 'system', 
@@ -58,7 +58,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
-      const response = await fetch(PERPLEXITY_API_URL, {
+      const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -71,7 +71,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       console.log(`Attempt ${attempt + 1} raw response:`, responseText)
 
       if (!response.ok) {
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
       }
 
       let data
@@ -156,16 +156,15 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
 
 async function generateMenuCourses(prompt: string, guestCount: number, courseCount: number): Promise<string[]> {
   try {
-    const apiKey = Deno.env.get('PERPLEXITY_API_KEY')
+    const apiKey = Deno.env.get('OPENAI_API_KEY')
     if (!apiKey) {
-      throw new Error('PERPLEXITY_API_KEY is not set')
+      throw new Error('OPENAI_API_KEY is not set')
     }
 
     console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
-    // Update the system prompt to explicitly require a dessert as the last course
     const requestBody = {
-      model: 'llama-3.1-sonar-large-128k-online',
+      model: 'gpt-4',
       messages: [
         { 
           role: 'system', 
@@ -197,7 +196,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
 
     console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
 
-    const response = await fetch(PERPLEXITY_API_URL, {
+    const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -211,7 +210,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
     console.log('Menu generation raw response:', responseText)
 
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}\nResponse: ${responseText}`)
     }
 
     let data
