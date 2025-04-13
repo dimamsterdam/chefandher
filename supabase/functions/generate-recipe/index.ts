@@ -35,7 +35,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       }
 
       const requestBody = {
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           { 
             role: 'system', 
@@ -164,7 +164,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
     console.log(`Generating menu courses with prompt: ${prompt}, guestCount: ${guestCount}, courseCount: ${courseCount}`)
 
     const requestBody = {
-      model: 'gpt-4',
+      model: 'gpt-4o',
       messages: [
         { 
           role: 'system', 

@@ -1,6 +1,19 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type { Database } from '@/types/supabase';
+
+type MenuDocument = Database['public']['Tables']['menu_documents']['Row'];
+type DocumentType = Database['public']['Enums']['document_type'];
+
+interface Menu {
+  id: string;
+  name: string;
+  created_at: string;
+  guest_count: number;
+  prep_days: number;
+  course_count: number;
+}
 
 interface Recipe {
   id?: string;
@@ -30,8 +43,31 @@ interface MenuState {
   courses: Course[];
   menuId: string | null;
   menuPlanningComplete: boolean;
-  menuGenerated: boolean; // Added state to track if menu was generated
-  originalMenuName: string; // Added state to store original menu name
+  menuGenerated: boolean;
+  originalMenuName: string;
+  generatingRecipeForCourse: string | null;
+  isGeneratingDocuments: boolean;
+  menuDocuments: {
+    [K in DocumentType]: string | null;
+  };
+  hasUnsavedChanges: boolean;
+  originalConfig: {
+    guestCount: number;
+    prepDays: number;
+    courseCount: number;
+  } | null;
+  showRegenerationConfirmation: boolean;
+  pendingMenuGeneration: {
+    prompt: string;
+    guestCount: number;
+    courseCount: number;
+    withRecipes: boolean;
+  } | null;
+  menus: Menu[];
+  isLoadingMenus: boolean;
+  isLoadingMenu: boolean;
+  fetchMenus: () => Promise<void>;
+  loadMenu: (menuId: string) => Promise<void>;
   setName: (name: string) => void;
   setGuestCount: (count: number) => void;
   setPrepDays: (days: number) => void;
@@ -41,10 +77,14 @@ interface MenuState {
   updateCourse: (id: string, updates: Partial<Course>) => void;
   reorderCourses: (courses: Course[]) => void;
   generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
-  generateMenu: (prompt: string) => Promise<void>;
+  generateMenu: (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean) => Promise<void>;
+  _generateMenu: (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean) => Promise<void>;
   saveMenu: () => Promise<void>;
   setMenuPlanningComplete: (complete: boolean) => void;
   reset: () => void;
+  generateMenuDocuments: () => Promise<void>;
+  confirmMenuRegeneration: () => Promise<void>;
+  cancelMenuRegeneration: () => void;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -55,35 +95,257 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   courseCount: 3,
   menuId: null,
   menuPlanningComplete: false,
-  menuGenerated: false, // Initialize as false
-  originalMenuName: '', // Initialize as empty string
-  setName: async (name) => {
-    set({ name });
+  menuGenerated: false,
+  originalMenuName: '',
+  generatingRecipeForCourse: null,
+  isGeneratingDocuments: false,
+  menuDocuments: {
+    mise_en_place: null,
+    service_instructions: null,
+    shopping_list: null
+  },
+  hasUnsavedChanges: false,
+  originalConfig: null,
+  showRegenerationConfirmation: false,
+  pendingMenuGeneration: null,
+  menus: [],
+  isLoadingMenus: false,
+  isLoadingMenu: false,
+  fetchMenus: async () => {
+    set({ isLoadingMenus: true });
     try {
-      await get().saveMenu();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        set({ menus: [], isLoadingMenus: false });
+        return;
+      }
+
+      const { data: menus, error } = await supabase
+        .from('menus')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      set({ menus: menus || [], isLoadingMenus: false });
     } catch (error) {
-      console.error('Failed to save menu name:', error);
+      console.error('Error fetching menus:', error);
+      toast.error('Failed to fetch menus');
+      set({ isLoadingMenus: false });
     }
   },
-  setGuestCount: (count) => set({ guestCount: count }),
-  setPrepDays: (days) => set({ prepDays: days }),
-  setCourseCount: (count) => set({ courseCount: count }),
+  loadMenu: async (menuId: string) => {
+    set({ isLoadingMenu: true });
+    try {
+      console.log('Loading menu with ID:', menuId);
+      
+      const { data: menu, error: menuError } = await supabase
+        .from('menus')
+        .select('*')
+        .eq('id', menuId)
+        .single();
+
+      if (menuError) throw menuError;
+      console.log('Loaded menu:', menu);
+
+      // First get all courses for this menu
+      const { data: courses, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('menu_id', menuId)
+        .order('order', { ascending: true });
+
+      if (coursesError) throw coursesError;
+      console.log('Loaded courses:', courses);
+
+      // Then get all recipes for these courses
+      const courseIds = courses?.map(course => course.id) || [];
+      const { data: recipes, error: recipesError } = await supabase
+        .from('recipes')
+        .select('*')
+        .in('course_id', courseIds);
+
+      if (recipesError) throw recipesError;
+      console.log('Loaded recipes:', recipes);
+
+      // Create a map of course_id to recipe
+      const recipeMap = recipes?.reduce((acc, recipe) => {
+        acc[recipe.course_id] = recipe;
+        return acc;
+      }, {} as Record<string, any>);
+
+      const { data: documents, error: documentsError } = await supabase
+        .from('menu_documents')
+        .select('*')
+        .eq('menu_id', menuId);
+
+      if (documentsError) throw documentsError;
+
+      const menuDocuments = documents?.reduce((acc, doc) => {
+        acc[doc.document_type] = doc.content;
+        return acc;
+      }, {} as { [K in DocumentType]: string | null });
+
+      const formattedCourses = courses?.map(course => {
+        console.log('Processing course:', course);
+        const recipe = recipeMap?.[course.id];
+        console.log('Found recipe for course:', recipe);
+        
+        return {
+          id: course.id,
+          title: course.title,
+          order: course.order,
+          dbId: course.id,
+          recipe: recipe ? {
+            id: recipe.id,
+            course_id: course.id,
+            title: recipe.title,
+            ingredients: recipe.ingredients || [],
+            instructions: recipe.instructions || [],
+            prep_time_minutes: recipe.prep_time_minutes || 0,
+            cook_time_minutes: recipe.cook_time_minutes || 0,
+            servings: recipe.servings || 0,
+          } : undefined
+        };
+      }) || [];
+
+      console.log('Formatted courses:', formattedCourses);
+
+      set({
+        menuId: menu.id,
+        name: menu.name,
+        guestCount: menu.guest_count,
+        prepDays: menu.prep_days,
+        courseCount: menu.course_count,
+        courses: formattedCourses,
+        menuDocuments: menuDocuments || {
+          mise_en_place: null,
+          service_instructions: null,
+          shopping_list: null
+        },
+        menuPlanningComplete: !!documents?.length,
+        menuGenerated: true,
+        originalMenuName: menu.name,
+        isLoadingMenu: false
+      });
+    } catch (error) {
+      console.error('Error loading menu:', error);
+      toast.error('Failed to load menu');
+      set({ isLoadingMenu: false });
+    }
+  },
+  setName: async (name) => {
+    set({ name, hasUnsavedChanges: true });
+    
+    const { menuId } = get();
+    
+    try {
+      if (!menuId) {
+        // Create a new menu if we don't have an ID
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        
+        if (!userId) {
+          toast.error("You must be logged in to save a menu");
+          return;
+        }
+
+        const { data: menu, error } = await supabase
+          .from('menus')
+          .insert({
+            name: name.trim() || 'Untitled',
+            guest_count: get().guestCount,
+            prep_days: get().prepDays,
+            user_id: userId
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        set({ 
+          menuId: menu.id,
+          originalConfig: {
+            guestCount: get().guestCount,
+            prepDays: get().prepDays,
+            courseCount: get().courseCount
+          }
+        });
+      } else {
+        // Update existing menu
+        const { error } = await supabase
+          .from('menus')
+          .update({ name: name.trim() || 'Untitled' })
+          .eq('id', menuId);
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Failed to save menu name:', error);
+      toast.error('Failed to save menu name');
+    }
+  },
+  setGuestCount: (count) => {
+    const state = get();
+    if (state.menuGenerated && state.originalConfig && count !== state.originalConfig.guestCount) {
+      toast.warning("Changing the guest count may affect the suitability of existing courses. Consider reviewing or regenerating recipes.");
+    }
+    set({ guestCount: count, hasUnsavedChanges: true });
+  },
+  setPrepDays: (days) => {
+    const state = get();
+    if (state.menuGenerated && state.originalConfig && days !== state.originalConfig.prepDays) {
+      toast.warning("Changing the preparation days may affect the preparation timeline. Consider reviewing the mise en place.");
+    }
+    set({ prepDays: days, hasUnsavedChanges: true });
+  },
+  setCourseCount: (count) => {
+    const state = get();
+    if (state.menuGenerated && state.originalConfig && count !== state.originalConfig.courseCount) {
+      toast.warning("Changing the course count doesn't affect existing courses. Generate a new menu to match the desired course count.");
+    }
+    set({ courseCount: count, hasUnsavedChanges: true });
+  },
   addCourse: (course) =>
     set((state) => ({
       courses: [...state.courses, { ...course, id: crypto.randomUUID() }],
+      hasUnsavedChanges: true
     })),
   removeCourse: (id) =>
     set((state) => ({
       courses: state.courses.filter((course) => course.id !== id),
+      hasUnsavedChanges: true
     })),
   updateCourse: (id, updates) =>
     set((state) => ({
       courses: state.courses.map((course) =>
         course.id === id ? { ...course, ...updates } : course
       ),
+      hasUnsavedChanges: true
     })),
-  reorderCourses: (courses) => set({ courses }),
-  setMenuPlanningComplete: (complete) => set({ menuPlanningComplete: complete }),
+  reorderCourses: (courses) => set({ courses, hasUnsavedChanges: true }),
+  setMenuPlanningComplete: async (complete) => {
+    const state = get();
+    
+    if (complete && state.hasUnsavedChanges) {
+      set({ 
+        menuPlanningComplete: complete,
+        menuDocuments: {
+          mise_en_place: null,
+          service_instructions: null,
+          shopping_list: null
+        }
+      });
+      try {
+        await get().generateMenuDocuments();
+        set({ hasUnsavedChanges: false });
+      } catch (error) {
+        console.error('Failed to generate menu documents:', error);
+        toast.error('Failed to generate menu documents');
+      }
+    } else {
+      set({ menuPlanningComplete: complete });
+    }
+  },
   generateRecipe: async (courseId: string, requirements?: string) => {
     const { courses, guestCount, menuId } = get();
     const course = courses.find((c) => c.id === courseId);
@@ -93,12 +355,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
-    // Get the current user session inside the async function instead of using the store directly
+    set({ generatingRecipeForCourse: courseId });
+
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
 
     if (!userId) {
       toast.error("You must be logged in to generate recipes");
+      set({ generatingRecipeForCourse: null });
       return;
     }
 
@@ -170,6 +434,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         courses: state.courses.map((c) =>
           c.id === courseId ? { ...c, recipe: savedRecipe } : c
         ),
+        hasUnsavedChanges: true
       }));
 
       toast.success("Recipe generated successfully!");
@@ -177,26 +442,37 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       console.error('Recipe generation error:', error);
       toast.error(error.message || 'Failed to generate recipe');
       throw error;
+    } finally {
+      set({ generatingRecipeForCourse: null });
     }
   },
-  generateMenu: async (prompt: string) => {
-    // Get the current user session inside the async function instead of using the store directly
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
+  generateMenu: async (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean = false) => {
+    const { courses } = get();
     
-    const { menuId, saveMenu, addCourse, name, guestCount, courseCount } = get();
-    
-    if (!userId) {
-      toast.error("You must be logged in to generate a menu");
-      return Promise.reject(new Error("Authentication required"));
+    // If there are existing courses, show confirmation modal
+    if (courses.length > 0) {
+      set({
+        showRegenerationConfirmation: true,
+        pendingMenuGeneration: { prompt, guestCount, courseCount, withRecipes }
+      });
+      return;
     }
 
-    try {
-      if (!menuId) {
-        await saveMenu();
-      }
+    // If no courses, proceed with generation
+    await get()._generateMenu(prompt, guestCount, courseCount, withRecipes);
+  },
+  _generateMenu: async (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean = false) => {
+    const { menuId, saveMenu, addCourse, name } = get();
+    
+    if (guestCount < 1) {
+      throw new Error('Guest count must be at least 1');
+    }
+    
+    if (courseCount < 1) {
+      throw new Error('Course count must be at least 1');
+    }
 
-      const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
+    const menuThemePrompt = `Create a complete ${name} menu for ${guestCount} guests. 
       The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
       
       IMPORTANT: 
@@ -209,53 +485,56 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       
       Each dish name should be descriptive and appetizing.`;
 
-      const response = await supabase.functions.invoke('generate-recipe', {
-        body: {
-          generateMenu: true,
-          prompt: menuThemePrompt,
-          menuName: name,
-          guestCount: guestCount,
-          courseCount: courseCount
-        },
-      });
+    const response = await supabase.functions.invoke('generate-recipe', {
+      body: {
+        generateMenu: true,
+        prompt: menuThemePrompt,
+        menuName: name,
+        guestCount,
+        courseCount
+      },
+    });
 
-      if (response.error) {
-        console.error('Menu generation error:', response.error);
-        throw new Error(response.error.message || 'Failed to generate menu');
-      }
-
-      if (!response.data?.courses || !Array.isArray(response.data.courses)) {
-        throw new Error('No menu data received');
-      }
-
-      // Clear existing courses
-      set({ courses: [] });
-
-      response.data.courses.forEach((courseName: string) => {
-        addCourse({
-          title: courseName,
-          order: get().courses.length,
-        });
-      });
-
-      // Set menuGenerated to true and store the original menu name
-      set({ 
-        menuGenerated: true,
-        originalMenuName: name
-      });
-
-      toast.success("Menu generated successfully!");
-      return Promise.resolve();
-    } catch (error: any) {
-      console.error('Menu generation error:', error);
-      toast.error(error.message || 'Failed to generate menu');
-      return Promise.reject(error);
+    if (response.error) {
+      console.error('Menu generation error:', response.error);
+      throw new Error(response.error.message || 'Failed to generate menu');
     }
+
+    if (!response.data?.courses || !Array.isArray(response.data.courses)) {
+      throw new Error('No menu data received');
+    }
+
+    set({ courses: [] });
+
+    response.data.courses.forEach((courseName: string) => {
+      addCourse({
+        title: courseName,
+        order: get().courses.length,
+      });
+    });
+
+    set({ 
+      menuGenerated: true,
+      originalMenuName: name
+    });
+
+    if (withRecipes) {
+      const courses = get().courses;
+      for (const course of courses) {
+        try {
+          await get().generateRecipe(course.id, `Please adjust all ingredient quantities to serve ${guestCount} people.`);
+        } catch (error) {
+          console.error(`Failed to generate recipe for course ${course.title}:`, error);
+        }
+      }
+    }
+
+    toast.success("Menu generated successfully!");
+    return Promise.resolve();
   },
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
     
-    // Get the current user session inside the async function instead of using the store directly
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
     
@@ -340,5 +619,83 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     menuPlanningComplete: false,
     menuGenerated: false,
     originalMenuName: '',
+    generatingRecipeForCourse: null,
+    isGeneratingDocuments: false,
+    menuDocuments: {
+      mise_en_place: null,
+      service_instructions: null,
+      shopping_list: null
+    },
+    hasUnsavedChanges: false,
   }),
+  generateMenuDocuments: async () => {
+    const { menuId, courses, guestCount, prepDays } = get();
+    
+    if (!menuId) {
+      throw new Error('Menu ID is required to generate documents');
+    }
+
+    set({ isGeneratingDocuments: true });
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('menu_documents')
+        .delete()
+        .eq('menu_id', menuId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      const response = await supabase.functions.invoke('generate-documents', {
+        body: {
+          menu_id: menuId,
+          courses,
+          guest_count: guestCount,
+          prep_days: prepDays
+        }
+      });
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      const { data: documents, error: fetchError } = await supabase
+        .from('menu_documents')
+        .select('*')
+        .eq('menu_id', menuId);
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const updatedDocuments = {
+        mise_en_place: null,
+        service_instructions: null,
+        shopping_list: null
+      } as { [K in DocumentType]: string | null };
+
+      documents?.forEach(doc => {
+        updatedDocuments[doc.document_type] = doc.content;
+      });
+
+      set({ menuDocuments: updatedDocuments });
+    } catch (error) {
+      console.error('Error generating menu documents:', error);
+      throw error;
+    } finally {
+      set({ isGeneratingDocuments: false });
+    }
+  },
+  confirmMenuRegeneration: async () => {
+    const { pendingMenuGeneration } = get();
+    if (!pendingMenuGeneration) return;
+
+    const { prompt, guestCount, courseCount, withRecipes } = pendingMenuGeneration;
+    set({ showRegenerationConfirmation: false, pendingMenuGeneration: null });
+    await get()._generateMenu(prompt, guestCount, courseCount, withRecipes);
+  },
+  cancelMenuRegeneration: () => {
+    set({ showRegenerationConfirmation: false, pendingMenuGeneration: null });
+  },
 }));
