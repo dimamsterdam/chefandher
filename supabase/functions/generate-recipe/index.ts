@@ -353,6 +353,7 @@ serve(async (req) => {
     YOU MUST RESPOND WITH A SINGLE JSON OBJECT IN THIS EXACT FORMAT:
     {
       "title": "${courseTitle}",
+      "description": "A brief, appetizing description of the dish (max 120 characters)",
       "ingredients": [
         "quantity ingredient 1",
         "quantity ingredient 2"
@@ -372,10 +373,16 @@ serve(async (req) => {
     3. prep_time_minutes and cook_time_minutes must be numbers between 5 and 180
     4. ingredients and instructions must be non-empty arrays of strings
     5. servings must equal ${actualGuestCount}
-    6. DO NOT include any text outside the JSON object
-    7. DO NOT wrap the response in markdown code blocks`
+    6. description must be a string of max 120 characters
+    7. DO NOT include any text outside the JSON object
+    8. DO NOT wrap the response in markdown code blocks`
 
     const recipe = await generateRecipeWithRetry(prompt)
+
+    // Validate the response
+    if (!recipe.description || typeof recipe.description !== 'string' || recipe.description.length > 120) {
+      throw new Error('Invalid recipe description')
+    }
 
     // Force servings to match requested guest count
     recipe.servings = actualGuestCount

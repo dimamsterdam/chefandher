@@ -67,3 +67,10 @@ Simply open [Lovable](https://lovable.dev/projects/b78e0890-81da-49a6-a296-eb656
 ## I want to use a custom domain - is that possible?
 
 We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+
+## How do I update the database types?
+
+If you've made changes to your Supabase database schema, you'll need to update the TypeScript types to match. Run the following command, replacing `[YOUR_PASSWORD]` with your actual Supabase database password:
+
+`supabase gen types typescript --db-url "postgresql://postgres.pphkyhrdfcceeuwgeqgu:[YOUR_DB_PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres" > src/types/supabase.ts`
+

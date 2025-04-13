@@ -63,6 +63,23 @@ const MenuPage = () => {
 
   const shouldWandBeActive = !name.trim() || !menuGenerated || (menuGenerated && name !== originalMenuName);
 
+  const hasConfigChanged = !menuPlanningComplete && // Only show in edit mode
+    menuGenerated && 
+    originalConfig && 
+    courses.length > 0 && // Only show if we have existing courses
+    (
+      guestCount !== originalConfig.guestCount ||
+      prepDays !== originalConfig.prepDays ||
+      courseCount !== originalConfig.courseCount ||
+      name !== originalMenuName
+    ) && (
+      // Don't show if this is the first generation
+      originalConfig.guestCount !== 1 ||
+      originalConfig.prepDays !== 1 ||
+      originalConfig.courseCount !== 3 ||
+      originalMenuName !== name
+    );
+
   useEffect(() => {
     console.log('useEffect triggered with id:', id);
     if (id) {
@@ -98,7 +115,7 @@ const MenuPage = () => {
   if (isLoadingMenu) {
     console.log('Showing loading state');
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
       </div>
     );
@@ -142,7 +159,9 @@ const MenuPage = () => {
     try {
       const prompt = `Create a complete ${name} menu for ${guestCount} guests with approximately ${desiredCourseCount} courses that specifically focuses on the theme of ${name}.`;
       await generateMenu(prompt, guestCount, desiredCourseCount, withRecipes);
-      toast.success(withRecipes ? "Menu and recipes generated successfully!" : "Menu generated successfully!");
+      if (!showRegenerationConfirmation) {
+        toast.success(withRecipes ? "Menu and recipes generated successfully!" : "Menu generated successfully!");
+      }
     } catch (error) {
       console.error('Menu generation failed:', error);
       toast.error('Failed to generate menu. Please try again.');
@@ -150,23 +169,6 @@ const MenuPage = () => {
       setGeneratingMenu(false);
     }
   };
-
-  const hasConfigChanged = !menuPlanningComplete && // Only show in edit mode
-    menuGenerated && 
-    originalConfig && 
-    courses.length > 0 && // Only show if we have existing courses
-    (
-      guestCount !== originalConfig.guestCount ||
-      prepDays !== originalConfig.prepDays ||
-      courseCount !== originalConfig.courseCount ||
-      name !== originalMenuName
-    ) && (
-      // Don't show if this is the first generation
-      originalConfig.guestCount !== 1 ||
-      originalConfig.prepDays !== 1 ||
-      originalConfig.courseCount !== 3 ||
-      originalMenuName !== name
-    );
 
   const startEditing = (course: { id: string; title: string }) => {
     setEditingCourseId(course.id);
@@ -576,13 +578,13 @@ const MenuPage = () => {
             <div className="flex justify-center space-x-4 my-6">
               <Button
                 onClick={() => handleGenerateMenu(true)}
-                disabled={!name.trim() || generatingMenu}
+                disabled={!name.trim() || generatingMenu || showRegenerationConfirmation}
                 className="min-w-[200px]"
               >
                 {generatingMenu ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating Menu & Recipes...
+                    {showRegenerationConfirmation ? "Confirm Regeneration..." : "Generating Menu & Recipes..."}
                   </>
                 ) : (
                   <>
@@ -594,13 +596,13 @@ const MenuPage = () => {
               <Button
                 variant="outline"
                 onClick={() => handleGenerateMenu(false)}
-                disabled={!name.trim() || generatingMenu}
+                disabled={!name.trim() || generatingMenu || showRegenerationConfirmation}
                 className="min-w-[200px]"
               >
                 {generatingMenu ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating Menu...
+                    {showRegenerationConfirmation ? "Confirm Regeneration..." : "Generating Menu..."}
                   </>
                 ) : (
                   <>
@@ -664,12 +666,19 @@ const MenuPage = () => {
                           </Button>
                         </div>
                       ) : (
-                        <span 
-                          className={`flex-grow font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
-                          onClick={() => !menuPlanningComplete && startEditing(course)}
-                        >
-                          {course.title}
-                        </span>
+                        <div className="flex-grow">
+                          <span 
+                            className={`font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
+                            onClick={() => !menuPlanningComplete && startEditing(course)}
+                          >
+                            {course.title}
+                          </span>
+                          {course.description && (
+                            <p className="text-sm text-gray-600 italic mt-0.5">
+                              {course.description}
+                            </p>
+                          )}
+                        </div>
                       )}
                       <div className="flex items-center gap-2">
                         {course.recipe && (
@@ -729,8 +738,32 @@ const MenuPage = () => {
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
+                      exit={{ 
+                        opacity: 0,
+                        height: 0,
+                        transition: {
+                          duration: 0.15,
+                          height: {
+                            duration: 0.15,
+                            ease: "easeIn"
+                          },
+                          opacity: {
+                            duration: 0.1,
+                            ease: "easeIn"
+                          }
+                        }
+                      }}
+                      transition={{ 
+                        duration: 0.2,
+                        height: {
+                          duration: 0.2,
+                          ease: "easeOut"
+                        },
+                        opacity: {
+                          duration: 0.1,
+                          ease: "easeOut"
+                        }
+                      }}
                       className="mt-2 ml-4 glass rounded-lg bg-white p-4 overflow-hidden"
                     >
                       <div className="space-y-4">

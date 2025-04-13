@@ -31,6 +31,7 @@ interface Course {
   id: string;
   title: string;
   order: number;
+  description?: string | null;
   recipe?: Recipe;
   dbId?: string;
 }
@@ -85,6 +86,7 @@ interface MenuState {
   generateMenuDocuments: () => Promise<void>;
   confirmMenuRegeneration: () => Promise<void>;
   cancelMenuRegeneration: () => void;
+  deleteMenu: (menuId: string) => Promise<void>;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -195,6 +197,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           id: course.id,
           title: course.title,
           order: course.order,
+          description: course.description,
           dbId: course.id,
           recipe: recipe ? {
             id: recipe.id,
@@ -226,6 +229,11 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         menuPlanningComplete: !!documents?.length,
         menuGenerated: true,
         originalMenuName: menu.name,
+        originalConfig: {
+          guestCount: menu.guest_count,
+          prepDays: menu.prep_days,
+          courseCount: menu.course_count
+        },
         isLoadingMenu: false
       });
     } catch (error) {
@@ -416,8 +424,24 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const recipe: Recipe = {
         course_id: finalCourse.dbId,
         created_by: userId,
-        ...response.data,
+        title: response.data.title,
+        ingredients: response.data.ingredients,
+        instructions: response.data.instructions,
+        prep_time_minutes: response.data.prep_time_minutes,
+        cook_time_minutes: response.data.cook_time_minutes,
+        servings: response.data.servings
       };
+
+      // Update the course description
+      const { error: updateCourseError } = await supabase
+        .from('courses')
+        .update({ description: response.data.description })
+        .eq('id', finalCourse.dbId);
+
+      if (updateCourseError) {
+        console.error('Course update error:', updateCourseError);
+        throw new Error('Failed to update course description');
+      }
 
       const { data: savedRecipe, error: saveError } = await supabase
         .from('recipes')
@@ -432,7 +456,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       set((state) => ({
         courses: state.courses.map((c) =>
-          c.id === courseId ? { ...c, recipe: savedRecipe } : c
+          c.id === courseId ? { ...c, recipe: savedRecipe, description: response.data.description } : c
         ),
         hasUnsavedChanges: true
       }));
@@ -459,7 +483,12 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
 
     // If no courses, proceed with generation
-    await get()._generateMenu(prompt, guestCount, courseCount, withRecipes);
+    try {
+      await get()._generateMenu(prompt, guestCount, courseCount, withRecipes);
+    } catch (error) {
+      console.error('Menu generation failed:', error);
+      throw error;
+    }
   },
   _generateMenu: async (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean = false) => {
     const { menuId, saveMenu, addCourse, name } = get();
@@ -515,7 +544,13 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
     set({ 
       menuGenerated: true,
-      originalMenuName: name
+      originalMenuName: name,
+      originalConfig: {
+        guestCount,
+        prepDays: get().prepDays,
+        courseCount
+      },
+      hasUnsavedChanges: true
     });
 
     if (withRecipes) {
@@ -697,5 +732,40 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   },
   cancelMenuRegeneration: () => {
     set({ showRegenerationConfirmation: false, pendingMenuGeneration: null });
+  },
+  deleteMenu: async (menuId: string) => {
+    try {
+      const { error: coursesError } = await supabase
+        .from('courses')
+        .delete()
+        .eq('menu_id', menuId);
+
+      if (coursesError) throw coursesError;
+
+      const { error: documentsError } = await supabase
+        .from('menu_documents')
+        .delete()
+        .eq('menu_id', menuId);
+
+      if (documentsError) throw documentsError;
+
+      const { error: menuError } = await supabase
+        .from('menus')
+        .delete()
+        .eq('id', menuId);
+
+      if (menuError) throw menuError;
+
+      // Update local state
+      set((state) => ({
+        menus: state.menus.filter((menu) => menu.id !== menuId),
+      }));
+
+      toast.success('Menu deleted successfully');
+    } catch (error) {
+      console.error('Error deleting menu:', error);
+      toast.error('Failed to delete menu');
+      throw error;
+    }
   },
 }));

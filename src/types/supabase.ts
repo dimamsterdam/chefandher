@@ -37,6 +37,7 @@ export type Database = {
       courses: {
         Row: {
           created_at: string
+          description: string | null
           id: string
           menu_id: string
           order: number
@@ -45,6 +46,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
           id?: string
           menu_id: string
           order: number
@@ -53,6 +55,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
           id?: string
           menu_id?: string
           order?: number
