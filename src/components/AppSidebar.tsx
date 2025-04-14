@@ -1,4 +1,3 @@
-
 import {
   Sidebar,
   SidebarContent,
@@ -8,7 +7,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { useAuthStore } from "@/store/authStore"
@@ -20,144 +18,209 @@ import {
   Menu, 
   ShoppingCart, 
   Timer, 
-  User 
+  User,
+  Loader2,
+  Plus,
+  Search,
+  Trash2
 } from "lucide-react"
-import { Link, useLocation } from "react-router-dom"
-
-const menuItems = [
-  {
-    title: "Menus",
-    path: "/",
-    icon: Menu,
-  },
-  {
-    title: "Recipes",
-    path: "/recipes",
-    icon: ChefHat,
-  },
-  {
-    title: "Planning",
-    path: "/planning",
-    icon: Timer,
-  },
-  {
-    title: "Shopping",
-    path: "/shopping",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Service",
-    path: "/service",
-    icon: ClipboardList,
-  },
-]
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 export function AppSidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { profile, signOut } = useAuthStore()
-  const { menuPlanningComplete } = useMenuStore()
+  const { menus, isLoadingMenus, fetchMenus, menuPlanningComplete, reset, deleteMenu } = useMenuStore()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [menuToDelete, setMenuToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    fetchMenus()
+  }, [fetchMenus])
+
+  const handleCreateNewMenu = () => {
+    reset();
+    navigate("/menu/new");
+  };
+
+  const handleDeleteMenu = async () => {
+    if (!menuToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteMenu(menuToDelete);
+      setMenuToDelete(null);
+      if (location.pathname === `/menu/${menuToDelete}`) {
+        navigate("/menu/new");
+      }
+    } catch (error) {
+      console.error('Failed to delete menu:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const filteredMenus = menus.filter(menu => 
+    menu.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <Sidebar className="border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
-      <SidebarHeader>
-        <div className="flex items-center gap-3 px-6 py-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg ring-2 ring-purple-500/20">
-            <User className="h-6 w-6 text-white" />
+    <>
+      <Sidebar className="border-r border-gray-200 bg-gradient-to-b from-white to-gray-50">
+        <SidebarHeader>
+          <div className="flex items-center justify-between px-3 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg ring-2 ring-purple-500/20">
+                <User className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-base font-semibold text-gray-900 tracking-tight">
+                  {profile?.full_name || "User"}
+                </span>
+                <span className="text-sm text-purple-600 font-medium">Chef</span>
+              </div>
+            </div>
+            <button
+              onClick={handleCreateNewMenu}
+              className="flex items-center justify-center h-10 w-10 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors duration-200"
+              title="Create New Menu"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
           </div>
-          <div className="flex flex-col">
-            <span className="text-base font-semibold text-gray-900 tracking-tight">
-              {profile?.full_name || "User"}
-            </span>
-            <span className="text-sm text-purple-600 font-medium">Chef</span>
-          </div>
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-bold text-purple-950/70 px-6 py-3 uppercase tracking-wider">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => {
-                const isMenusItem = item.path === "/";
-                const isActive = location.pathname === item.path;
-                const isDisabled = !isMenusItem && !menuPlanningComplete;
-                
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      asChild={!isDisabled}
-                      isActive={isActive}
-                      className={`group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
-                        isActive
-                          ? "bg-purple-100 text-purple-900"
-                          : isDisabled
-                          ? "opacity-50 cursor-not-allowed pointer-events-none"
-                          : "hover:bg-gray-100"
-                      }`}
-                      aria-disabled={isDisabled}
-                    >
-                      {isDisabled ? (
-                        <div className="flex items-center gap-3">
-                          <div className="p-1.5 rounded-md bg-gray-100">
-                            <item.icon className="h-4 w-4 text-gray-400" />
-                          </div>
-                          <span className="text-sm font-medium text-gray-400">
-                            {item.title}
-                          </span>
-                        </div>
-                      ) : (
-                        <Link to={item.path} className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded-md transition-colors duration-200 ${
-                            isActive
-                              ? "bg-purple-200"
-                              : "bg-white shadow-sm group-hover:bg-purple-50"
-                          }`}>
-                            <item.icon className={`h-4 w-4 transition-colors duration-200 ${
-                              isActive
-                                ? "text-purple-600"
-                                : "text-gray-600 group-hover:text-purple-600"
-                            }`} />
-                          </div>
-                          <span className={`text-sm font-medium transition-colors duration-200 ${
-                            isActive
-                              ? "text-purple-900"
-                              : "text-gray-700 group-hover:text-purple-900"
-                          }`}>
-                            {item.title}
-                          </span>
-                        </Link>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter className="pb-4">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  onClick={() => signOut()}
-                  className="group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 hover:bg-red-50"
-                >
-                  <div className="p-1.5 rounded-md bg-white shadow-sm group-hover:bg-red-100">
-                    <LogOut className="h-4 w-4 text-gray-600 group-hover:text-red-600" />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-xs font-bold text-purple-950/70 px-3 py-3 uppercase tracking-wider">
+              Your Menus
+            </SidebarGroupLabel>
+            <div className="px-3 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search menus..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+            </div>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {isLoadingMenus ? (
+                  <div className="flex items-center justify-center p-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
                   </div>
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-red-600">
-                    Sign Out
-                  </span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarFooter>
-    </Sidebar>
+                ) : filteredMenus.length === 0 ? (
+                  <div className="text-sm text-gray-500 px-6 py-2">
+                    {searchQuery ? "No menus match your search" : "No menus created yet"}
+                  </div>
+                ) : (
+                  filteredMenus.map((menu) => {
+                    const isActive = location.pathname === `/menu/${menu.id}`;
+                    return (
+                      <SidebarMenuItem key={menu.id}>
+                        <div className="relative flex items-center justify-between mx-1 px-3 py-2.5 rounded-lg transition-all duration-200 hover:bg-gray-100">
+                          <Link 
+                            to={`/menu/${menu.id}`}
+                            className={`flex-grow flex items-center gap-3 ${
+                              isActive
+                                ? "text-purple-900"
+                                : "text-gray-700 hover:text-purple-900"
+                            }`}
+                          >
+                            <span className={`text-sm font-medium transition-colors duration-200`}>
+                              {menu.name}
+                            </span>
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setMenuToDelete(menu.id);
+                            }}
+                            className="absolute right-2 opacity-0 hover:opacity-100 transition-opacity duration-200 p-1.5 rounded-md hover:bg-red-50 text-gray-500 hover:text-red-600"
+                            title="Delete menu"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </SidebarMenuItem>
+                    );
+                  })
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter className="pb-4">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <div 
+                    onClick={() => signOut()}
+                    className="group flex items-center gap-3 mx-3 px-3 py-2.5 rounded-lg transition-all duration-200 hover:bg-red-50 cursor-pointer"
+                  >
+                    <div className="p-1.5 rounded-md bg-white shadow-sm group-hover:bg-red-100">
+                      <LogOut className="h-4 w-4 text-gray-600 group-hover:text-red-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 group-hover:text-red-600">
+                      Sign Out
+                    </span>
+                  </div>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarFooter>
+      </Sidebar>
+
+      <Dialog open={!!menuToDelete} onOpenChange={() => setMenuToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Menu</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this menu? This action cannot be undone and will permanently delete all courses, recipes, and documents associated with this menu.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMenuToDelete(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteMenu}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Menu'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

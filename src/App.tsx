@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -14,6 +13,7 @@ import RecipesPage from "./pages/recipes"
 import PlanningPage from "./pages/planning"
 import ShoppingPage from "./pages/shopping"
 import ServicePage from "./pages/service"
+import MenuPage from "./pages/menu/[id]"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +45,7 @@ const App = () => (
                           <SidebarTrigger className="absolute left-4 top-4 z-50" />
                           <Routes>
                             <Route path="/" element={<Index />} />
+                            <Route path="/menu/:id" element={<MenuPage />} />
                             <Route path="/recipes" element={<RecipesPage />} />
                             <Route path="/planning" element={<PlanningPage />} />
                             <Route path="/shopping" element={<ShoppingPage />} />
