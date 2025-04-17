@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -360,7 +359,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     const course = courses.find((c) => c.id === courseId);
     
     if (!course) {
-      toast.error('Course not found');
+      toast.error("Course not found");
       return;
     }
 
@@ -384,7 +383,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const updatedCourse = currentState.courses.find((c) => c.id === courseId);
       
       if (!currentState.menuId) {
-        toast.error('Failed to save menu. Please try again.');
+        toast.error("Failed to save menu. Please try again.");
         return;
       }
 
@@ -394,14 +393,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         const retryCourse = retryState.courses.find((c) => c.id === courseId);
         
         if (!retryCourse?.dbId) {
-          toast.error('Failed to save course. Please try again.');
+          toast.error("Failed to save course. Please try again.");
           return;
         }
       }
 
       const finalCourse = get().courses.find((c) => c.id === courseId);
       if (!finalCourse?.dbId) {
-        toast.error('Failed to save course. Please try again.');
+        toast.error("Failed to save course. Please try again.");
         return;
       }
 
@@ -462,7 +461,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         hasUnsavedChanges: true
       }));
 
-      toast.success('Recipe generated successfully!');
+      toast.success("Recipe generated successfully!");
     } catch (error: any) {
       console.error('Recipe generation error:', error);
       toast.error(error.message || 'Failed to generate recipe');
@@ -575,7 +574,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     const userId = session?.user?.id;
     
     if (!userId) {
-      toast.error('You must be logged in to save a menu');
+      toast.error("You must be logged in to save a menu");
       return;
     }
     
