@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -157,7 +156,7 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
   throw lastError || new Error('Failed to generate recipe after all retries')
 }
 
-async function generateMenuCourses(prompt: string, guestCount: number, courseCount: number): Promise<string[]> {
+async function generateMenuCourses(prompt: string, guestCount: number, courseCount: number): Promise<any[]> {
   try {
     const apiKey = Deno.env.get('OPENAI_API_KEY')
     if (!apiKey) {
@@ -172,21 +171,29 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
         { 
           role: 'system', 
           content: `You are a professional chef that creates elegant, sophisticated menus.
-          You will respond with ONLY a simple JSON array of specific dish names (NOT course types).
-          Do not include any markdown, just return the raw JSON array.
           
-          Example response: ["Truffle Risotto with Wild Mushrooms", "Herb-crusted Rack of Lamb", "Chocolate Soufflé with Vanilla Bean Ice Cream"]
+          Return a JSON array of course objects with these properties:
+          - title: specific dish name (string)
+          - type: "starter", "main", "side", or "dessert" (string)
+          - parent: title of the related main course (string, only for side dishes)
           
           IMPORTANT GUIDELINES:
-          - Each dish name should be specific, descriptive, and appetizing
-          - Include EXACTLY ${courseCount} dishes appropriate for the requested menu theme
-          - Do not use generic terms like "Appetizer", "Main Course", or "Dessert"
-          - THE LAST DISH MUST ALWAYS BE A DESSERT BUT IF POSSIBLE WITHIN THE THEME OF THE MENU (e.g., "Lemon Tart with Fresh Berries", "Tiramisu", "Crème Brûlée")
-          - All other courses should be savory dishes (appetizers, mains, sides)
-          - Each dish name should be elegant and sophisticated (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" NOT just "Scallops")
-          - Do not include numbers or other prefixes in the dish names
-          - DO NOT wrap the response in code blocks or any other formatting
-          - Make sure the dish names align with the requested menu theme`
+          - Include EXACTLY ${courseCount} courses total
+          - Include at least one starter, one main course, and one dessert
+          - Create a logical progression (starters → mains → dessert)
+          - For a side dish, specify which main course it accompanies using the "parent" property
+          - Ensure each dish name is specific, elegant, and descriptive (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" not just "Scallops")
+          - Consider cultural and traditional aspects related to the theme
+          - The LAST course MUST always be a dessert
+          - Ensure the menu is balanced and follows logical culinary progression
+          
+          Example response for a 4-course menu:
+          [
+            {"title":"Truffle Arancini with Wild Mushrooms", "type":"starter"},
+            {"title":"Pan-seared Salmon with Lemon Butter", "type":"main"},
+            {"title":"Roasted Brussels Sprouts with Balsamic Glaze", "type":"side", "parent":"Pan-seared Salmon with Lemon Butter"},
+            {"title":"Chocolate Soufflé with Vanilla Bean Ice Cream", "type":"dessert"}
+          ]`
         },
         { 
           role: 'user', 
@@ -194,7 +201,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
         }
       ],
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 800,
     }
 
     console.log('Menu generation request body:', JSON.stringify(requestBody, null, 2))
@@ -257,27 +264,67 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
       throw new Error('Courses must be an array')
     }
     
-    // Verify that we have at least one course that looks like a dessert
-    // If not, replace the last course with a default dessert option
-    const lastCourse = courses[courses.length - 1].toLowerCase();
-    const dessertKeywords = ['cake', 'tart', 'pudding', 'soufflé', 'ice cream', 'sorbet', 'mousse', 
-                           'crème', 'chocolate', 'panna cotta', 'tiramisu', 'cheesecake', 'dessert',
-                           'brûlée', 'custard', 'pie', 'sweet', 'caramel'];
+    // Validate menu has logical progression and required course types
+    const hasStarter = courses.some(course => course.type === 'starter');
+    const hasMain = courses.some(course => course.type === 'main');
+    const hasDessert = courses.some(course => course.type === 'dessert');
     
-    const isDessert = dessertKeywords.some(keyword => lastCourse.includes(keyword.toLowerCase()));
-    
-    if (!isDessert && courses.length > 0) {
-      console.log('Last course does not appear to be a dessert, replacing with dessert option');
-      // Replace the last course with a dessert that matches the theme
-      const dessertOptions = [
-        "Classic Vanilla Bean Crème Brûlée",
-        "Dark Chocolate Mousse with Fresh Berries",
-        "Lemon Tart with Raspberry Coulis",
-        "Tiramisu with Espresso-Soaked Ladyfingers",
-        "Warm Apple Tart with Vanilla Ice Cream"
-      ];
-      courses[courses.length - 1] = dessertOptions[Math.floor(Math.random() * dessertOptions.length)];
+    if (!hasStarter || !hasMain || !hasDessert) {
+      console.log('Menu is missing required course types, adding default courses');
+      
+      if (!hasStarter) {
+        courses.unshift({
+          title: "Seasonal Mixed Green Salad with Vinaigrette",
+          type: "starter"
+        });
+      }
+      
+      if (!hasMain) {
+        // Add after starters but before dessert
+        const dessertIndex = courses.findIndex(c => c.type === 'dessert');
+        const insertIndex = dessertIndex > 0 ? dessertIndex : courses.length - 1;
+        
+        courses.splice(insertIndex, 0, {
+          title: "Herb-Roasted Chicken with Seasonal Vegetables",
+          type: "main"
+        });
+      }
+      
+      if (!hasDessert) {
+        courses.push({
+          title: "Classic Vanilla Bean Crème Brûlée",
+          type: "dessert"
+        });
+      }
     }
+    
+    // Ensure the last course is a dessert
+    const lastCourse = courses[courses.length - 1];
+    if (lastCourse.type !== 'dessert') {
+      // Move any existing dessert to the end
+      const dessertIndex = courses.findIndex(c => c.type === 'dessert');
+      if (dessertIndex >= 0) {
+        const dessert = courses.splice(dessertIndex, 1)[0];
+        courses.push(dessert);
+      } else {
+        // Add a default dessert if none exists
+        courses.push({
+          title: "Seasonal Fruit Tart with Fresh Berries",
+          type: "dessert"
+        });
+      }
+    }
+    
+    // Ensure side dishes have valid parent main courses
+    courses.forEach(course => {
+      if (course.type === 'side' && course.parent) {
+        const parentExists = courses.some(c => c.type === 'main' && c.title === course.parent);
+        if (!parentExists) {
+          // Remove parent reference if the parent doesn't exist
+          delete course.parent;
+        }
+      }
+    });
 
     console.log('Generated menu courses:', courses)
     return courses

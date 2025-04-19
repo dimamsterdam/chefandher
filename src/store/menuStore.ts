@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Database } from '@/types/database.types';
+import type { Database, CourseType } from '@/types/database.types';
 
 type MenuDocument = Database['public']['Tables']['menu_documents']['Row'];
 type DocumentType = Database['public']['Enums']['document_type'];
@@ -34,6 +34,8 @@ interface Course {
   description?: string | null;
   recipe?: Recipe;
   dbId?: string;
+  courseType?: CourseType;
+  parentCourseId?: string | null;
 }
 
 interface MenuState {
@@ -91,6 +93,9 @@ interface MenuState {
   cancelMenuRegeneration: () => void;
   deleteMenu: (menuId: string) => Promise<void>;
   createNewMenu: () => Promise<string | null>;
+  updateCourseType: (id: string, courseType: CourseType) => void;
+  setParentCourse: (id: string, parentId: string | null) => void;
+  getMainCourses: () => Course[];
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -225,6 +230,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           order: course.order,
           description: course.description,
           dbId: course.id,
+          courseType: course.course_type as CourseType,
+          parentCourseId: course.parent_course_id,
           recipe: recipe ? {
             id: recipe.id,
             course_id: course.id,
@@ -355,6 +362,27 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       hasUnsavedChanges: true
     })),
   reorderCourses: (courses) => set({ courses, hasUnsavedChanges: true }),
+  updateCourseType: (id, courseType) => 
+    set((state) => ({
+      courses: state.courses.map((course) =>
+        course.id === id ? { ...course, courseType } : course
+      ),
+      hasUnsavedChanges: true
+    })),
+  setParentCourse: (id, parentId) => 
+    set((state) => ({
+      courses: state.courses.map((course) =>
+        course.id === id ? { ...course, parentCourseId: parentId } : course
+      ),
+      hasUnsavedChanges: true
+    })),
+  getMainCourses: () => {
+    const { courses } = get();
+    return courses.filter(course => 
+      course.courseType === 'main' || 
+      (!course.courseType && !course.parentCourseId)
+    );
+  },
   setMenuPlanningComplete: async (complete) => {
     const state = get();
     
@@ -527,14 +555,26 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       The menu should specifically focus on dishes appropriate for a ${name.toLowerCase()} theme.
       
       IMPORTANT: 
+      - For each course, include the course type (starter, main, side, or dessert)
+      - Create a balanced, logical menu with:
+        * At least one starter
+        * At least one main course
+        * Side dishes that complement main courses
+        * One dessert as the final course
       - Use SPECIFIC dish names, not generic course types
       - Include exactly ${courseCount} dishes total
-      - For example:
-        - Instead of "Appetizer", use something like "Garlic Butter Prawns" or "Mushroom Arancini Balls"
-        - Instead of "Main Course", use something like "Pan-seared Salmon with Lemon Butter" or "Braised Short Ribs"
-        - Instead of "Dessert", use something like "Chocolate Soufflé" or "Caramel Panna Cotta"
+      - Consider cultural and traditional aspects of the ${name} theme
+      - Make sure the progression of dishes makes logical sense (e.g., light dishes first, heavier dishes in the middle, sweet at the end)
+      - Format your response as a JSON array with objects containing "title" and "type" properties
+      - Example:
+        [
+          {"title": "Mushroom Arancini Balls", "type": "starter"},
+          {"title": "Pan-seared Salmon with Lemon Butter", "type": "main"},
+          {"title": "Roasted Brussels Sprouts with Balsamic Glaze", "type": "side", "parent": "Pan-seared Salmon with Lemon Butter"},
+          {"title": "Chocolate Soufflé", "type": "dessert"}
+        ]
       
-      Each dish name should be descriptive and appetizing.`;
+      Each dish name should be descriptive and appetizing, and appropriate for the course type.`;
 
     const response = await supabase.functions.invoke('generate-recipe', {
       body: {
@@ -557,11 +597,61 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
     set({ courses: [] });
 
-    response.data.courses.forEach((courseName: string) => {
-      addCourse({
-        title: courseName,
-        order: get().courses.length,
-      });
+    let parsedCourses = response.data.courses;
+    if (typeof parsedCourses === 'string') {
+      try {
+        parsedCourses = JSON.parse(parsedCourses);
+      } catch (error) {
+        console.error('Failed to parse courses:', error);
+      }
+    }
+
+    const mainCoursesMap = new Map();
+    
+    parsedCourses.forEach((course, index) => {
+      if (typeof course === 'string') {
+        addCourse({
+          title: course,
+          order: index,
+          courseType: index === parsedCourses.length - 1 ? 'dessert' : 'main'
+        });
+      } else {
+        if (course.type !== 'side') {
+          const newCourse = {
+            title: course.title,
+            order: index,
+            courseType: course.type as CourseType
+          };
+          
+          addCourse(newCourse);
+          
+          if (course.type === 'main') {
+            const addedCourses = get().courses;
+            const addedCourse = addedCourses[addedCourses.length - 1];
+            mainCoursesMap.set(course.title, addedCourse.id);
+          }
+        }
+      }
+    });
+
+    parsedCourses.forEach((course, index) => {
+      if (typeof course !== 'string' && course.type === 'side' && course.parent) {
+        const parentId = mainCoursesMap.get(course.parent);
+        if (parentId) {
+          addCourse({
+            title: course.title,
+            order: index,
+            courseType: 'side',
+            parentCourseId: parentId
+          });
+        } else {
+          addCourse({
+            title: course.title,
+            order: index,
+            courseType: 'side'
+          });
+        }
+      }
     });
 
     set({ 
@@ -646,6 +736,9 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             menu_id: currentMenuId,
             title: course.title,
             order: course.order,
+            description: course.description,
+            course_type: course.courseType,
+            parent_course_id: course.parentCourseId
           }))
         )
         .select();

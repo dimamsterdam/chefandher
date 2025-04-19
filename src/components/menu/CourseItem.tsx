@@ -1,13 +1,44 @@
 
 import { useState } from "react";
-import { motion, Reorder } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { Reorder, useDragControls } from "framer-motion";
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  Edit2, 
+  Trash2, 
+  Save, 
+  X, 
+  MoreHorizontal, 
+  GripHorizontal, 
+  Loader2,
+  ChevronsRight,
+  ChevronsLeft,
+  Utensils
+} from "lucide-react";
+import { Course, CourseType } from "@/types/database.types";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { BookOpen, RefreshCw, Wand2, Trash2, GripVertical, Loader2, Check, X, ChefHat } from "lucide-react";
-import { Course } from "@/types/database.types";
-import ReactMarkdown from 'react-markdown';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-interface CourseItemProps {
+type Props = {
   course: Course;
   isEditing: boolean;
   generatingFor: string | null;
@@ -17,193 +48,313 @@ interface CourseItemProps {
   onSaveEditing: () => void;
   onCancelEditing: () => void;
   onGenerateRecipe: (courseId: string) => void;
-  onRemoveCourse: (courseId: string) => void;
+  onRemoveCourse: (id: string) => void;
   editingTitle: string;
   onEditingTitleChange: (value: string) => void;
   openRecipe: string | null;
-  onToggleRecipe: (courseId: string | null) => void;
-  onOpenCookingView?: (course: Course) => void;
-}
+  onToggleRecipe: (id: string | null) => void;
+  onOpenCookingView: (course: Course) => void;
+  onChangeCourseType?: (id: string, courseType: CourseType) => void;
+  onSetParentCourse?: (id: string, parentId: string | null) => void;
+  availableMainCourses?: Course[];
+};
 
-export const CourseItem = ({
-  course,
-  isEditing,
-  generatingFor,
-  generatingRecipeForCourse,
+export const CourseItem = ({ 
+  course, 
+  isEditing, 
+  generatingFor, 
+  generatingRecipeForCourse, 
   menuPlanningComplete,
-  onStartEditing,
-  onSaveEditing,
-  onCancelEditing,
-  onGenerateRecipe,
+  onStartEditing, 
+  onSaveEditing, 
+  onCancelEditing, 
+  onGenerateRecipe, 
   onRemoveCourse,
   editingTitle,
   onEditingTitleChange,
   openRecipe,
   onToggleRecipe,
   onOpenCookingView,
-}: CourseItemProps) => {
+  onChangeCourseType,
+  onSetParentCourse,
+  availableMainCourses = []
+}: Props) => {
+  const [showDetails, setShowDetails] = useState(false);
+  const dragControls = useDragControls();
+  const isRecipeOpen = openRecipe === course.id;
+  const showIngredientsList = isRecipeOpen && course.recipe;
+  const hasRecipe = !!course.recipe;
+  const isGeneratingRecipe = course.id === generatingFor || course.id === generatingRecipeForCourse;
+  const isSideDish = course.courseType === 'side' && course.parentCourseId;
+  
+  const renderCourseTypeDropdown = () => {
+    if (!onChangeCourseType) return null;
+    
+    return (
+      <div className="flex items-center space-x-2 ml-2">
+        <Select
+          value={course.courseType || "main"}
+          onValueChange={(value) => onChangeCourseType(course.id, value as CourseType)}
+          disabled={menuPlanningComplete}
+        >
+          <SelectTrigger className="w-[120px]">
+            <SelectValue placeholder="Course type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="starter">Starter</SelectItem>
+            <SelectItem value="main">Main</SelectItem>
+            <SelectItem value="side">Side</SelectItem>
+            <SelectItem value="dessert">Dessert</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+  
+  const renderParentCourseDropdown = () => {
+    if (!onSetParentCourse || course.courseType !== 'side') return null;
+    
+    const mainCourses = availableMainCourses.filter(c => c.id !== course.id);
+    
+    return (
+      <div className="flex items-center space-x-2 ml-2">
+        <Select
+          value={course.parentCourseId || ""}
+          onValueChange={(value) => onSetParentCourse(course.id, value === "" ? null : value)}
+          disabled={menuPlanningComplete}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select main course" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">None</SelectItem>
+            {mainCourses.map(mainCourse => (
+              <SelectItem key={mainCourse.id} value={mainCourse.id}>
+                {mainCourse.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col">
-      <Reorder.Item
-        value={course}
-        className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
-        dragListener={!menuPlanningComplete}
-      >
-        <div className="flex items-center space-x-4">
+    <Reorder.Item
+      value={course}
+      dragListener={!menuPlanningComplete}
+      dragControls={dragControls}
+      className={cn(
+        "rounded-lg bg-white shadow-sm border border-gray-200 overflow-hidden transition-all", 
+        isSideDish && "ml-10"
+      )}
+    >
+      <div className="p-4">
+        <div className="flex items-start gap-3">
           {!menuPlanningComplete && (
-            <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-          )}
-          {isEditing ? (
-            <div className="flex-grow flex items-center gap-2">
-              <Input
-                value={editingTitle}
-                onChange={(e) => onEditingTitleChange(e.target.value)}
-                className="flex-grow"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    onSaveEditing();
-                  }
-                }}
-                autoFocus
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onSaveEditing}
-                className="text-green-600 hover:text-green-700 hover:bg-green-50"
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onCancelEditing}
-                className="text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            <div 
+              className="mt-1 cursor-grab active:cursor-grabbing"
+              onPointerDown={(e) => dragControls.start(e)}
+            >
+              <GripHorizontal className="h-5 w-5 text-gray-400" />
             </div>
-          ) : (
-            <div className="flex-grow">
-              <span 
-                className={`font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
-                onClick={() => !menuPlanningComplete && onStartEditing(course)}
-              >
-                {course.title}
-              </span>
-              {course.description && (
-                <p className="text-sm text-gray-600 italic mt-0.5">
-                  {course.description}
-                </p>
+          )}
+          
+          <div className="flex-grow">
+            <div className="flex flex-wrap items-center gap-2">
+              {isEditing ? (
+                <div className="flex-grow">
+                  <Input
+                    value={editingTitle}
+                    onChange={(e) => onEditingTitleChange(e.target.value)}
+                    className="text-base"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <h3 className="text-xl font-semibold mr-2">
+                  {course.title}
+                </h3>
+              )}
+              
+              {course.courseType && !isEditing && (
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "capitalize",
+                    course.courseType === 'starter' && "bg-blue-50 text-blue-700 border-blue-200",
+                    course.courseType === 'main' && "bg-purple-50 text-purple-700 border-purple-200",
+                    course.courseType === 'side' && "bg-green-50 text-green-700 border-green-200",
+                    course.courseType === 'dessert' && "bg-pink-50 text-pink-700 border-pink-200"
+                  )}
+                >
+                  {course.courseType}
+                </Badge>
+              )}
+
+              {isEditing && renderCourseTypeDropdown()}
+              {isEditing && renderParentCourseDropdown()}
+              
+              {hasRecipe && (
+                <Badge variant="secondary" className="cursor-pointer" onClick={() => onOpenCookingView(course)}>
+                  <Utensils className="h-3 w-3 mr-1" />
+                  Cook
+                </Badge>
               )}
             </div>
-          )}
+            
+            {course.description && !isEditing && (
+              <p className="text-gray-600 text-sm mt-1">{course.description}</p>
+            )}
+          </div>
+          
           <div className="flex items-center gap-2">
-            {course.recipe && (
+            {isEditing ? (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onToggleRecipe(openRecipe === course.id ? null : course.id)}
-                  className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-8 w-8 p-0" 
+                  onClick={onCancelEditing}
                 >
-                  <BookOpen className="h-4 w-4" />
+                  <X className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onOpenCookingView && onOpenCookingView(course)}
-                  className="text-amber-500 hover:text-amber-600 hover:bg-amber-50"
-                  title="Cooking View"
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-8 w-8 p-0" 
+                  onClick={onSaveEditing}
                 >
-                  <ChefHat className="h-4 w-4" />
+                  <Save className="h-4 w-4" />
                 </Button>
               </>
-            )}
-            {!menuPlanningComplete && (
+            ) : (
               <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => onGenerateRecipe(course.id)}
-                  disabled={!!generatingFor || generatingRecipeForCourse !== null}
-                  className={`relative ${
-                    course.recipe 
-                      ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
-                      : ''
-                  } ${
-                    generatingRecipeForCourse === course.id 
-                      ? 'bg-purple-50' 
-                      : ''
-                  }`}
-                >
-                  {generatingRecipeForCourse === course.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : course.recipe ? (
-                    <RefreshCw className="h-4 w-4" />
-                  ) : (
-                    <Wand2 className="h-4 w-4" />
-                  )}
-                </Button>
+                {!menuPlanningComplete && (
+                  <>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="h-8 w-8 p-0" 
+                      onClick={() => onStartEditing(course)}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onRemoveCourse(course.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove Course
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                )}
+                
                 <Button
                   variant="ghost"
-                  size="icon"
-                  onClick={() => onRemoveCourse(course.id)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  disabled={generatingFor === course.id || generatingRecipeForCourse === course.id}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setShowDetails(!showDetails)}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {showDetails ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
               </>
             )}
           </div>
         </div>
-      </Reorder.Item>
 
-      {course.recipe && openRecipe === course.id && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          transition={{ duration: 0.2 }}
-          className="mt-2 ml-4 glass rounded-lg bg-white p-4 overflow-hidden"
-        >
-          <div className="space-y-4">
-            {course.recipe.ingredients && course.recipe.ingredients.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-2 text-gray-700">Ingredients:</h4>
-                <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                  {course.recipe.ingredients.map((ingredient, idx) => (
-                    <li key={idx}>{ingredient}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {course.recipe.instructions && course.recipe.instructions.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-2 text-gray-700">Instructions:</h4>
-                <ol className="list-decimal pl-5 space-y-2 text-gray-600">
-                  {course.recipe.instructions.map((instruction, idx) => (
-                    <li key={idx}>{instruction}</li>
-                  ))}
-                </ol>
-              </div>
-            )}
-            {course.recipe.prep_time_minutes && course.recipe.cook_time_minutes && (
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+        {/* Expandable content */}
+        {showDetails && !isEditing && (
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+              {!hasRecipe ? (
+                <Button
+                  onClick={() => onGenerateRecipe(course.id)}
+                  disabled={isGeneratingRecipe}
+                  className="flex-grow md:flex-grow-0"
+                >
+                  {isGeneratingRecipe ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Recipe...
+                    </>
+                  ) : (
+                    "Generate Recipe"
+                  )}
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline"
+                  onClick={() => onToggleRecipe(isRecipeOpen ? null : course.id)}
+                  className="flex-grow md:flex-grow-0"
+                >
+                  {isRecipeOpen ? "Hide Recipe" : "Show Recipe"}
+                  {isRecipeOpen ? (
+                    <ChevronUp className="ml-2 h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  )}
+                </Button>
+              )}
+              
+              {hasRecipe && (
+                <Button 
+                  variant="default"
+                  onClick={() => onOpenCookingView(course)}
+                  className="flex-grow md:flex-grow-0"
+                >
+                  Cooking View
+                </Button>
+              )}
+            </div>
+            
+            {showIngredientsList && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mt-4 space-y-4"
+              >
                 <div>
-                  <span className="font-medium">Prep Time:</span>{" "}
-                  {course.recipe.prep_time_minutes} minutes
+                  <h4 className="font-medium mb-2">Ingredients:</h4>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {course.recipe.ingredients.map((ingredient, index) => (
+                      <li key={index} className="text-gray-600">{ingredient}</li>
+                    ))}
+                  </ul>
                 </div>
                 <div>
-                  <span className="font-medium">Cook Time:</span>{" "}
-                  {course.recipe.cook_time_minutes} minutes
+                  <h4 className="font-medium mb-2">Instructions:</h4>
+                  <ol className="list-decimal pl-5 space-y-2">
+                    {course.recipe.instructions.map((instruction, index) => (
+                      <li key={index} className="text-gray-600">
+                        {instruction.replace(/^Step \d+:\s*/i, '')}
+                      </li>
+                    ))}
+                  </ol>
                 </div>
-              </div>
+                <div className="flex gap-4 text-sm text-gray-500">
+                  <div>Prep time: {course.recipe.prep_time_minutes} min</div>
+                  <div>Cook time: {course.recipe.cook_time_minutes} min</div>
+                  <div>Servings: {course.recipe.servings}</div>
+                </div>
+              </motion.div>
             )}
           </div>
-        </motion.div>
-      )}
-    </div>
+        )}
+      </div>
+    </Reorder.Item>
   );
 };
