@@ -65,8 +65,28 @@ export const MenuDocument = ({
           transition={{ duration: 0.2 }}
           className="mt-4 pt-4 border-t overflow-hidden"
         >
-          <div className="prose max-w-none">
-            <ReactMarkdown>{content}</ReactMarkdown>
+          <div className="prose prose-purple max-w-none dark:prose-invert">
+            <ReactMarkdown
+              components={{
+                h1: ({ children }) => <h1 className="text-2xl font-bold mb-4">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 mt-6">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-lg font-medium mb-2 mt-4">{children}</h3>,
+                ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-2">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-2">{children}</ol>,
+                li: ({ children }) => <li className="text-gray-700">{children}</li>,
+                p: ({ children }) => <p className="mb-4 text-gray-700 leading-relaxed">{children}</p>,
+                strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                em: ({ children }) => <em className="italic text-gray-800">{children}</em>,
+                hr: () => <hr className="my-6 border-gray-200" />,
+                blockquote: ({ children }) => (
+                  <blockquote className="pl-4 border-l-4 border-purple-200 italic text-gray-700 my-4">
+                    {children}
+                  </blockquote>
+                ),
+              }}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
         </motion.div>
       )}
