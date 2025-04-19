@@ -43,7 +43,7 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 pt-16">
       <div className="container mx-auto px-4 py-8 space-y-12">
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/90 via-primary to-purple-800 text-white p-8 md:p-12 animate-fade-in">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white/90 via-[#EEE] to-primary/50 text-gray-800 p-8 md:p-12 animate-fade-in">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent)] pointer-events-none" />
           
           <div className="relative z-10 max-w-4xl mx-auto">
