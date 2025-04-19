@@ -1,3 +1,4 @@
+
 export type Json =
   | string
   | number
@@ -227,7 +228,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      document_type: "mise_en_place" | "service_instructions" | "shopping_list"
+      document_type: "mise_en_place" | "service_instructions" | "shopping_list" | "recipes"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -346,8 +347,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      document_type: ["mise_en_place", "service_instructions", "shopping_list"],
+      document_type: ["mise_en_place", "service_instructions", "shopping_list", "recipes"],
     },
   },
 } as const
-
