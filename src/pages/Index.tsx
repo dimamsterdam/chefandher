@@ -1,13 +1,17 @@
-import React from "react";
+
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, ChefHat, Clock, Users, Utensils, ArrowRight, Star, Rocket, Award } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Loader2 } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { createNewMenu } = useMenuStore();
+  const { createNewMenu, menus } = useMenuStore();
   const [menuName, setMenuName] = useState("");
   const [isCreatingMenu, setIsCreatingMenu] = useState(false);
 
@@ -82,66 +86,64 @@ const Index = () => {
           </div>
         </div>
 
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Create a New Menu</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Menu Name (Optional)</label>
-                <Input
-                  type="text"
-                  value={menuName}
-                  onChange={(e) => setMenuName(e.target.value)}
-                  placeholder="Default: 'Untitled Menu'"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !isCreatingMenu) {
-                      handleCreateMenu();
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                onClick={handleCreateMenu}
-                className="w-full"
-                disabled={isCreatingMenu}
-              >
-                {isCreatingMenu ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Menu'
-                )}
-
-              </Button>
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-semibold mb-4">Create a New Menu</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Menu Name (Optional)</label>
+              <Input
+                type="text"
+                value={menuName}
+                onChange={(e) => setMenuName(e.target.value)}
+                placeholder="Default: 'Untitled Menu'"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !isCreatingMenu) {
+                    handleCreateMenu();
+                  }
+                }}
+              />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-              {recentMenus.map((menu) => (
-                <Card 
-                  key={menu.id}
-                  className="hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/menu/${menu.id}`)}
-                >
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <ChefHat className="h-4 w-4" />
-                      {menu.name || "Untitled Menu"}
-                    </CardTitle>
-                    <CardDescription>
-                      {menu.guest_count} guest{menu.guest_count !== 1 ? 's' : ''} • {menu.prep_days} day{menu.prep_days !== 1 ? 's' : ''} prep
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-500">
-                      Created {new Date(menu.created_at).toLocaleDateString()}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Button
+              onClick={handleCreateMenu}
+              className="w-full"
+              disabled={isCreatingMenu}
+            >
+              {isCreatingMenu ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Menu'
+              )}
+            </Button>
           </div>
-        )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+          {recentMenus.map((menu) => (
+            <Card 
+              key={menu.id}
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => navigate(`/menu/${menu.id}`)}
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <ChefHat className="h-4 w-4" />
+                  {menu.name || "Untitled Menu"}
+                </CardTitle>
+                <CardDescription>
+                  {menu.guest_count} guest{menu.guest_count !== 1 ? 's' : ''} • {menu.prep_days} day{menu.prep_days !== 1 ? 's' : ''} prep
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-500">
+                  Created {new Date(menu.created_at).toLocaleDateString()}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );
