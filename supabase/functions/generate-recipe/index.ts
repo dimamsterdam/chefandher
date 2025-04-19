@@ -181,7 +181,7 @@ async function generateMenuCourses(prompt: string, guestCount: number, courseCou
           - Each dish name should be specific, descriptive, and appetizing
           - Include EXACTLY ${courseCount} dishes appropriate for the requested menu theme
           - Do not use generic terms like "Appetizer", "Main Course", or "Dessert"
-          - THE LAST DISH MUST ALWAYS BE A DESSERT (e.g., "Lemon Tart with Fresh Berries", "Tiramisu", "Crème Brûlée")
+          - THE LAST DISH MUST ALWAYS BE A DESSERT BUT IF POSSIBLE WITHIN THE THEME OF THE MENU (e.g., "Lemon Tart with Fresh Berries", "Tiramisu", "Crème Brûlée")
           - All other courses should be savory dishes (appetizers, mains, sides)
           - Each dish name should be elegant and sophisticated (e.g., "Pan-seared Scallops with Citrus Beurre Blanc" NOT just "Scallops")
           - Do not include numbers or other prefixes in the dish names
