@@ -1072,6 +1072,81 @@ const MenuPage = () => {
                   </motion.div>
                 )}
               </div>
+
+              {/* Recipes Document */}
+              <div className="flex flex-col p-4 glass rounded-lg bg-white transition-colors">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">Recipes</h3>
+                  <div className="flex items-center gap-2">
+                    {menuDocuments.recipes && !isGeneratingDocuments && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handlePrintDocument('Recipes', menuDocuments.recipes!)}
+                        className="text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {(menuDocuments.recipes === null || isGeneratingDocuments) ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled
+                        className="text-purple-600"
+                      >
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setOpenRecipe(openRecipe === 'recipes' ? null : 'recipes')}
+                        className={`transition-colors ${openRecipe === 'recipes' ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
+                      >
+                        <BookOpen className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {openRecipe === 'recipes' && menuDocuments.recipes && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ 
+                      opacity: 0,
+                      height: 0,
+                      transition: {
+                        duration: 0.15,
+                        height: {
+                          duration: 0.15,
+                          ease: "easeIn"
+                        },
+                        opacity: {
+                          duration: 0.1,
+                          ease: "easeIn"
+                        }
+                      }
+                    }}
+                    transition={{ 
+                      duration: 0.2,
+                      height: {
+                        duration: 0.2,
+                        ease: "easeOut"
+                      },
+                      opacity: {
+                        duration: 0.1,
+                        ease: "easeOut"
+                      }
+                    }}
+                    className="mt-4 pt-4 border-t overflow-hidden"
+                  >
+                    <div className="prose max-w-none">
+                      <ReactMarkdown>{menuDocuments.recipes}</ReactMarkdown>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
@@ -1080,4 +1155,4 @@ const MenuPage = () => {
   );
 };
 
-export default MenuPage; 
+export default MenuPage;
