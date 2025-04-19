@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -41,7 +40,7 @@ const Index = () => {
   const recentMenus = menus.slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 pt-16">
       <div className="container mx-auto px-4 py-8 space-y-12">
         {/* Hero Section */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/90 via-primary to-purple-800 text-white p-8 md:p-12 animate-fade-in">
@@ -127,4 +126,3 @@ const Index = () => {
 };
 
 export default Index;
-
