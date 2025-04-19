@@ -36,25 +36,27 @@ async function generateRecipeWithRetry(prompt: string, maxRetries = 2): Promise<
       }
 
       const requestBody = {
-        model: 'gpt-4o',
+        model: "gpt-4o",
+        temperature: 0.7,
+        max_tokens: 1000,
+        response_format: { type: "json_object" },
+    
         messages: [
-          { 
-            role: 'system', 
-            content: `You are a professional chef that ONLY responds with valid JSON objects. 
-            Your response must ALWAYS include these exact fields:
-            - title (string)
-            - ingredients (array of strings)
-            - detailed step by step instructions (array of strings)
-            - prep_time_minutes (number between 5 and 180)
-            - cook_time_minutes (number between 5 and 180)
-            - servings (number matching requested guest count)
-            Never include any additional text or fields before or after the above.
-            DO NOT wrap the JSON in markdown code blocks.`
+          {
+            role: "system",
+            content: `You are a Michelin‑trained chef.
+            Generate a recipe as a JSON object with keys:
+            - title           (string, ≤70 chars)
+            - ingredients     (array, ≥8 items, include quantity & unit)
+            - instructions    (array, 6–10 steps, each starting with a verb and ending with timing/visual cue)
+            - prep_time_minutes (integer 5‑180)
+            - cook_time_minutes (integer 5‑180)
+            - servings        (integer matching the user’s requested guest count)
+    
+            No additional keys.`
           },
           { role: 'user', content: prompt }
-        ],
-        temperature: 0.0,
-        max_tokens: 1000,
+        ]
       }
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2))
