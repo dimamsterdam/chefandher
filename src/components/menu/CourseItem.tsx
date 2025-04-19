@@ -1,9 +1,8 @@
-
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookOpen, RefreshCw, ChefHat, Trash2, GripVertical, Loader2, Check, X } from "lucide-react";
+import { BookOpen, RefreshCw, Wand, Trash2, GripVertical, Loader2, Check, X } from "lucide-react";
 import { Course } from "@/types/database.types";
 import ReactMarkdown from 'react-markdown';
 
@@ -129,7 +128,7 @@ export const CourseItem = ({
                   ) : course.recipe ? (
                     <RefreshCw className="h-4 w-4" />
                   ) : (
-                    <ChefHat className="h-4 w-4" />
+                    <Wand className="h-4 w-4" />
                   )}
                 </Button>
                 <Button
