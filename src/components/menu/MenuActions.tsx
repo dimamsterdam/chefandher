@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { ChefHat, Loader2, Wand2 } from "lucide-react";
+import { Wand2, Loader2 } from "lucide-react";
 
 interface MenuActionsProps {
   name: string;
@@ -29,7 +29,7 @@ export const MenuActions = ({
           </>
         ) : (
           <>
-            <ChefHat className="h-4 w-4 mr-2" />
+            <Wand2 className="h-4 w-4 mr-2" />
             Generate Menu with Recipes
           </>
         )}
