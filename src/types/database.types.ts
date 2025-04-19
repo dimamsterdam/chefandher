@@ -21,5 +21,11 @@ export interface Database extends BaseDatabase {
         Update: Partial<Omit<MenuDocument, 'id' | 'created_at' | 'updated_at'>>
       }
     }
+    Views: BaseDatabase['public']['Views']
+    Functions: BaseDatabase['public']['Functions']
+    Enums: {
+      document_type: DocumentType
+    }
+    CompositeTypes: BaseDatabase['public']['CompositeTypes']
   }
 }
