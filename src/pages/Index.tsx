@@ -103,7 +103,7 @@ const Index = () => {
                   onClick={() => navigate(`/menu/${menu.id}`)}
                 >
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
                       <ChefHat className="h-4 w-4" />
                       {menu.name || "Untitled Menu"}
                     </CardTitle>
@@ -127,3 +127,4 @@ const Index = () => {
 };
 
 export default Index;
+
