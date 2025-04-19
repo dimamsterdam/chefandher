@@ -74,9 +74,12 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
       );
     }
     
+    // For instruction steps, calculate the actual instruction step number
+    const instructionStepNumber = steps.filter(s => s.type === 'instruction').findIndex(s => s === step) + 1;
+    
     return (
       <div className="flex flex-col h-full">
-        <h2 className="text-3xl md:text-4xl font-bold mb-6">Step {currentStep - 1}</h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-6">Step {instructionStepNumber}</h2>
         <p className="text-xl md:text-2xl">{step.content}</p>
       </div>
     );
