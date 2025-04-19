@@ -1,6 +1,7 @@
+
 import { Database as BaseDatabase } from '@/types/supabase'
 
-export type DocumentType = 'mise_en_place' | 'service_instructions' | 'shopping_list'
+export type DocumentType = 'mise_en_place' | 'service_instructions' | 'shopping_list' | 'recipes'
 
 export interface MenuDocument {
   id: string
@@ -21,4 +22,4 @@ export interface Database extends BaseDatabase {
       }
     }
   }
-} 
+}

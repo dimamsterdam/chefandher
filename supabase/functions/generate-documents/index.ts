@@ -10,7 +10,7 @@ const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
 
 interface MenuDocument {
   menu_id: string;
-  document_type: 'mise_en_place' | 'service_instructions' | 'shopping_list';
+  document_type: 'mise_en_place' | 'service_instructions' | 'shopping_list' | 'recipes';
   content: string;
 }
 
@@ -144,6 +144,28 @@ serve(async (req) => {
       content: shoppingListContent
     })
 
+    // Generate Recipes Document
+    const recipesPrompt = `Create a comprehensive recipe document for the following menu to serve ${guest_count} guests:
+    ${courses.map(c => c.title).join('\n')}
+    
+    For each course, include:
+    1. Course title
+    2. Description
+    3. Detailed ingredients list with quantities
+    4. Step-by-step preparation instructions
+    5. Cooking times and temperatures
+    6. Plating instructions
+    7. Chef's notes or special considerations
+    
+    Format the response in clear sections with headers and bullet points for each course.`
+    
+    const recipesContent = await generateDocumentWithRetry(recipesPrompt)
+    documents.push({
+      menu_id,
+      document_type: 'recipes',
+      content: recipesContent
+    })
+
     // Save documents to database
     const { error } = await supabaseClient
       .from('menu_documents')
@@ -170,4 +192,4 @@ serve(async (req) => {
       }
     )
   }
-}) 
+})
