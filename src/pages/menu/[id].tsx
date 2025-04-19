@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Pencil, Check, AlertTriangle, Loader2, Plus } from "lucide-react";
@@ -11,6 +10,8 @@ import { MenuConfiguration } from "@/components/menu/MenuConfiguration";
 import { MenuActions } from "@/components/menu/MenuActions";
 import { CourseItem } from "@/components/menu/CourseItem";
 import { MenuDocument } from "@/components/menu/MenuDocument";
+import { CookingView } from "@/components/menu/CookingView";
+import { Course } from "@/types/database.types";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ const MenuPage = () => {
   const [generatingMenu, setGeneratingMenu] = useState(false);
   const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
   const [showEditConfirmation, setShowEditConfirmation] = useState(false);
+  const [cookingViewCourse, setCookingViewCourse] = useState<Course | null>(null);
 
   const hasConfigChanged = !menuPlanningComplete && 
     menuGenerated && 
@@ -258,9 +260,21 @@ const MenuPage = () => {
     printWindow.document.close();
   };
 
+  const handleOpenCookingView = (course: Course) => {
+    setCookingViewCourse(course);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       <div className="container mx-auto px-4 py-8">
+        {cookingViewCourse && (
+          <CookingView 
+            course={cookingViewCourse} 
+            open={!!cookingViewCourse} 
+            onClose={() => setCookingViewCourse(null)} 
+          />
+        )}
+
         <Dialog open={showEditConfirmation} onOpenChange={setShowEditConfirmation}>
           <DialogContent>
             <DialogHeader>
@@ -421,6 +435,7 @@ const MenuPage = () => {
                   onEditingTitleChange={(value) => setEditingTitle(value)}
                   openRecipe={openRecipe}
                   onToggleRecipe={setOpenRecipe}
+                  onOpenCookingView={handleOpenCookingView}
                 />
               ))}
             </Reorder.Group>
@@ -466,7 +481,6 @@ const MenuPage = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Recipes Document */}
               <MenuDocument
                 title="Recipes"
                 content={menuDocuments.recipes}
@@ -476,7 +490,6 @@ const MenuPage = () => {
                 onPrint={(content) => handlePrintDocument('Recipes', content)}
               />
 
-              {/* Mise en Place */}
               <MenuDocument
                 title="Mise en Place"
                 content={menuDocuments.mise_en_place}
@@ -486,7 +499,6 @@ const MenuPage = () => {
                 onPrint={(content) => handlePrintDocument('Mise en Place', content)}
               />
 
-              {/* Service Instructions */}
               <MenuDocument
                 title="Service Instructions"
                 content={menuDocuments.service_instructions}
@@ -496,7 +508,6 @@ const MenuPage = () => {
                 onPrint={(content) => handlePrintDocument('Service Instructions', content)}
               />
 
-              {/* Shopping List */}
               <MenuDocument
                 title="Shopping List"
                 content={menuDocuments.shopping_list}

@@ -1,8 +1,9 @@
+
 import { useState } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookOpen, RefreshCw, Wand2, Trash2, GripVertical, Loader2, Check, X } from "lucide-react";
+import { BookOpen, RefreshCw, Wand2, Trash2, GripVertical, Loader2, Check, X, ChefHat } from "lucide-react";
 import { Course } from "@/types/database.types";
 import ReactMarkdown from 'react-markdown';
 
@@ -21,6 +22,7 @@ interface CourseItemProps {
   onEditingTitleChange: (value: string) => void;
   openRecipe: string | null;
   onToggleRecipe: (courseId: string | null) => void;
+  onOpenCookingView?: (course: Course) => void;
 }
 
 export const CourseItem = ({
@@ -38,6 +40,7 @@ export const CourseItem = ({
   onEditingTitleChange,
   openRecipe,
   onToggleRecipe,
+  onOpenCookingView,
 }: CourseItemProps) => {
   return (
     <div className="flex flex-col">
@@ -97,14 +100,25 @@ export const CourseItem = ({
           )}
           <div className="flex items-center gap-2">
             {course.recipe && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onToggleRecipe(openRecipe === course.id ? null : course.id)}
-                className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-              >
-                <BookOpen className="h-4 w-4" />
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onToggleRecipe(openRecipe === course.id ? null : course.id)}
+                  className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onOpenCookingView && onOpenCookingView(course)}
+                  className="text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                  title="Cooking View"
+                >
+                  <ChefHat className="h-4 w-4" />
+                </Button>
+              </>
             )}
             {!menuPlanningComplete && (
               <>
