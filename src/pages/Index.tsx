@@ -2,7 +2,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, ChefHat, Clock, Users, Utensils, ArrowRight } from "lucide-react";
+import { Plus, ChefHat, Clock, Users, Utensils, ArrowRight, Star, Rocket, Award } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
@@ -22,24 +22,19 @@ const Index = () => {
 
   const features = [
     {
-      icon: ChefHat,
-      title: "Professional Menu Planning",
+      icon: Star,
+      title: "AI-Powered",
       description: "Create restaurant-quality menus with AI assistance"
     },
     {
-      icon: Clock,
-      title: "Time Management",
-      description: "Organize prep schedules and cooking timelines"
+      icon: Rocket,
+      title: "Lightning Fast",
+      description: "Generate complete menus in minutes, not hours"
     },
     {
-      icon: Users,
-      title: "Guest Management",
-      description: "Scale recipes and portions automatically"
-    },
-    {
-      icon: Utensils,
-      title: "Recipe Generation",
-      description: "Get detailed recipes and cooking instructions"
+      icon: Award,
+      title: "Professional",
+      description: "Impress your guests with expertly crafted dishes"
     }
   ];
 
@@ -48,27 +43,34 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       <div className="container mx-auto px-4 py-8 space-y-12">
-        <div className="max-w-4xl mx-auto text-center space-y-8 animate-fade-in">
-          <div className="space-y-4">
-            <h1 className="text-4xl font-bold mb-2">Welcome to Chef & Her</h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Your personal AI-powered menu planning assistant. Create professional menus, 
-              generate recipes, and manage your kitchen with ease.
-            </p>
-          </div>
+        {/* Hero Section */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/90 via-primary to-purple-800 text-white p-8 md:p-12 animate-fade-in">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent)] pointer-events-none" />
+          
+          <div className="relative z-10 max-w-4xl mx-auto">
+            <div className="text-center space-y-6 mb-12">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/90">
+                Welcome to Chef & Her
+              </h1>
+              <p className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto">
+                Your personal AI-powered menu planning assistant. Create professional menus, 
+                generate recipes, and manage your kitchen with ease.
+              </p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
-            {features.map((feature, index) => (
-              <Card key={index} className="text-left hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <feature.icon className="h-6 w-6 text-primary" />
-                    <CardTitle>{feature.title}</CardTitle>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+              {features.map((feature, index) => (
+                <div key={index} className="flex items-start space-x-4">
+                  <div className="bg-white/10 rounded-2xl p-3">
+                    <feature.icon className="h-6 w-6 text-white" />
                   </div>
-                  <CardDescription>{feature.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">{feature.title}</h3>
+                    <p className="text-white/80 text-sm">{feature.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
