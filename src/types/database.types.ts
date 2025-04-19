@@ -20,6 +20,10 @@ export interface Database extends BaseDatabase {
         Insert: Omit<MenuDocument, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<MenuDocument, 'id' | 'created_at' | 'updated_at'>>
       }
+      courses: BaseDatabase['public']['Tables']['courses']
+      menus: BaseDatabase['public']['Tables']['menus']
+      profiles: BaseDatabase['public']['Tables']['profiles']
+      recipes: BaseDatabase['public']['Tables']['recipes']
     }
     Views: BaseDatabase['public']['Views']
     Functions: BaseDatabase['public']['Functions']
