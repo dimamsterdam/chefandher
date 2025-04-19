@@ -119,15 +119,15 @@ export const CourseItem = ({
     return (
       <div className="flex items-center space-x-2 ml-2">
         <Select
-          value={course.parentCourseId || ""}
-          onValueChange={(value) => onSetParentCourse(course.id, value === "" ? null : value)}
+          value={course.parentCourseId || "none"}
+          onValueChange={(value) => onSetParentCourse(course.id, value === "none" ? null : value)}
           disabled={menuPlanningComplete}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select main course" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="none">None</SelectItem>
             {mainCourses.map(mainCourse => (
               <SelectItem key={mainCourse.id} value={mainCourse.id}>
                 {mainCourse.title}
