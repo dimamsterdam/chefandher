@@ -142,10 +142,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   loadMenu: async (menuId: string) => {
-    // Clear menu state and set loading at the start
     set({
       isLoadingMenu: true,
-      // Clear all menu-specific state
       name: '',
       guestCount: 1,
       prepDays: 1,
@@ -160,7 +158,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       menuDocuments: {
         mise_en_place: null,
         service_instructions: null,
-        shopping_list: null
+        shopping_list: null,
+        recipes: null
       },
       hasUnsavedChanges: false,
       originalConfig: null,
@@ -180,7 +179,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (menuError) throw menuError;
       console.log('Loaded menu:', menu);
 
-      // First get all courses for this menu
       const { data: courses, error: coursesError } = await supabase
         .from('courses')
         .select('*')
@@ -190,7 +188,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (coursesError) throw coursesError;
       console.log('Loaded courses:', courses);
 
-      // Then get all recipes for these courses
       const courseIds = courses?.map(course => course.id) || [];
       const { data: recipes, error: recipesError } = await supabase
         .from('recipes')
@@ -200,7 +197,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       if (recipesError) throw recipesError;
       console.log('Loaded recipes:', recipes);
 
-      // Create a map of course_id to recipe
       const recipeMap = recipes?.reduce((acc, recipe) => {
         acc[recipe.course_id] = recipe;
         return acc;
@@ -279,7 +275,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     
     try {
       if (!menuId) {
-        // Create a new menu if we don't have an ID
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         
@@ -309,7 +304,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           }
         });
       } else {
-        // Update existing menu
         const { error } = await supabase
           .from('menus')
           .update({ name: name.trim() || 'Untitled' })
@@ -463,7 +457,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         servings: response.data.servings
       };
 
-      // Update the course description
       const { error: updateCourseError } = await supabase
         .from('courses')
         .update({ description: response.data.description })
@@ -504,7 +497,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   generateMenu: async (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean = false) => {
     const { courses } = get();
     
-    // If there are existing courses, show confirmation modal
     if (courses.length > 0) {
       set({
         showRegenerationConfirmation: true,
@@ -513,7 +505,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       return;
     }
 
-    // If no courses, proceed with generation
     try {
       await get()._generateMenu(prompt, guestCount, courseCount, withRecipes);
     } catch (error) {
@@ -792,7 +783,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       if (menuError) throw menuError;
 
-      // Update local state
       set((state) => ({
         menus: state.menus.filter((menu) => menu.id !== menuId),
       }));
@@ -831,7 +821,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
       if (error) throw error;
       
-      // Don't update the main state here, just return the ID
       return menu.id;
     } catch (error: any) {
       console.error('Failed to create new menu:', error);
