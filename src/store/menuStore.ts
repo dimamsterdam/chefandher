@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -88,6 +87,7 @@ interface MenuState {
   confirmMenuRegeneration: () => Promise<void>;
   cancelMenuRegeneration: () => void;
   deleteMenu: (menuId: string) => Promise<void>;
+  createNewMenu: () => Promise<string | null>;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -138,7 +138,32 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   loadMenu: async (menuId: string) => {
-    set({ isLoadingMenu: true });
+    // Clear menu state and set loading at the start
+    set({
+      isLoadingMenu: true,
+      // Clear all menu-specific state
+      name: '',
+      guestCount: 1,
+      prepDays: 1,
+      courseCount: 3,
+      courses: [],
+      menuId: null,
+      menuPlanningComplete: false,
+      menuGenerated: false,
+      originalMenuName: '',
+      generatingRecipeForCourse: null,
+      isGeneratingDocuments: false,
+      menuDocuments: {
+        mise_en_place: null,
+        service_instructions: null,
+        shopping_list: null
+      },
+      hasUnsavedChanges: false,
+      originalConfig: null,
+      showRegenerationConfirmation: false,
+      pendingMenuGeneration: null
+    });
+
     try {
       console.log('Loading menu with ID:', menuId);
       
@@ -220,7 +245,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         name: menu.name,
         guestCount: menu.guest_count,
         prepDays: menu.prep_days,
-        courseCount: menu.course_count,
         courses: formattedCourses,
         menuDocuments: menuDocuments || {
           mise_en_place: null,
@@ -233,13 +257,13 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         originalConfig: {
           guestCount: menu.guest_count,
           prepDays: menu.prep_days,
-          courseCount: menu.course_count
-        },
-        isLoadingMenu: false
+          courseCount: 3
+        }
       });
     } catch (error) {
       console.error('Error loading menu:', error);
       toast.error('Failed to load menu');
+    } finally {
       set({ isLoadingMenu: false });
     }
   },
@@ -663,6 +687,9 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       shopping_list: null
     },
     hasUnsavedChanges: false,
+    originalConfig: null,
+    showRegenerationConfirmation: false,
+    pendingMenuGeneration: null,
   }),
   generateMenuDocuments: async () => {
     const { menuId, courses, guestCount, prepDays } = get();
@@ -767,6 +794,41 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       console.error('Error deleting menu:', error);
       toast.error('Failed to delete menu');
       throw error;
+    }
+  },
+  createNewMenu: async (): Promise<string | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      toast.error("You must be logged in to create a menu");
+      return null;
+    }
+
+    try {
+      const defaultMenuName = 'Untitled Menu';
+      const defaultGuestCount = 1;
+      const defaultPrepDays = 1;
+
+      const { data: menu, error } = await supabase
+        .from('menus')
+        .insert({
+          name: defaultMenuName,
+          guest_count: defaultGuestCount,
+          prep_days: defaultPrepDays,
+          user_id: userId
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // Don't update the main state here, just return the ID
+      return menu.id;
+    } catch (error: any) {
+      console.error('Failed to create new menu:', error);
+      toast.error(error.message || 'Failed to create new menu');
+      return null;
     }
   },
 }));

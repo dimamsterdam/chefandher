@@ -4,21 +4,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useMenuStore } from "@/store/menuStore";
+import { Loader2 } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { setName, reset } = useMenuStore();
+  const { createNewMenu } = useMenuStore();
   const [menuName, setMenuName] = useState("");
+  const [isCreatingMenu, setIsCreatingMenu] = useState(false);
 
-  const handleCreateMenu = () => {
-    if (!menuName.trim()) {
-      toast.error("Please enter a menu name");
-      return;
+  const handleCreateMenu = async () => {
+    setIsCreatingMenu(true);
+    try {
+      const newMenuId = await createNewMenu();
+      if (newMenuId) {
+        navigate(`/menu/${newMenuId}`);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } catch (error) {
+      console.error('Failed to create or navigate to new menu:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsCreatingMenu(false);
     }
-
-    reset();
-    setName(menuName.trim());
-    navigate("/menu/new");
   };
 
   return (
@@ -34,14 +42,14 @@ const Index = () => {
             <h2 className="text-xl font-semibold mb-4">Create a New Menu</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Menu Name</label>
+                <label className="block text-sm font-medium mb-2">Menu Name (Optional)</label>
                 <Input
                   type="text"
                   value={menuName}
                   onChange={(e) => setMenuName(e.target.value)}
-                  placeholder="Enter menu name"
+                  placeholder="Default: 'Untitled Menu'"
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !isCreatingMenu) {
                       handleCreateMenu();
                     }
                   }}
@@ -50,9 +58,16 @@ const Index = () => {
               <Button
                 onClick={handleCreateMenu}
                 className="w-full"
-                disabled={!menuName.trim()}
+                disabled={isCreatingMenu}
               >
-                Create Menu
+                {isCreatingMenu ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Menu'
+                )}
               </Button>
             </div>
           </div>
