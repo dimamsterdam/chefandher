@@ -52,7 +52,7 @@ const Index = () => {
               <h1 className="text-3xl md:text-4xl font-semibold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/90 text-gray-100">
                 Welcome to Chef & Her
               </h1>
-              <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto">
+              <p className="text-base md:text-lg text-white/80 max-w-2xl mx-auto">
                 Your personal AI-powered menu planning assistant. Create professional menus, 
                 generate recipes, and manage your kitchen with ease.
               </p>
@@ -65,8 +65,8 @@ const Index = () => {
                     <feature.icon className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-base mb-1 text-white/90">{feature.title}</h3>
-                    <p className="text-white/70 text-sm">{feature.description}</p>
+                    <h3 className="font-medium text-sm mb-1 text-white/90">{feature.title}</h3>
+                    <p className="text-white/70 text-xs">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -88,7 +88,7 @@ const Index = () => {
         ) : (
           <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
             <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold">Recently Created Menus</h2>
+              <h2 className="text-2xl font-bold">Recently Created Menus</h2>
               <Button onClick={handleCreateMenu}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create New Menu
@@ -104,7 +104,7 @@ const Index = () => {
                 >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <ChefHat className="h-5 w-5" />
+                      <ChefHat className="h-4 w-4" />
                       {menu.name || "Untitled Menu"}
                     </CardTitle>
                     <CardDescription>
