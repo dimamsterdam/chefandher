@@ -49,10 +49,10 @@ const Index = () => {
           
           <div className="relative z-10 max-w-4xl mx-auto">
             <div className="text-center space-y-6 mb-12">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/90">
+              <h1 className="text-3xl md:text-4xl font-semibold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/90 text-gray-100">
                 Welcome to Chef & Her
               </h1>
-              <p className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto">
+              <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto">
                 Your personal AI-powered menu planning assistant. Create professional menus, 
                 generate recipes, and manage your kitchen with ease.
               </p>
@@ -62,11 +62,11 @@ const Index = () => {
               {features.map((feature, index) => (
                 <div key={index} className="flex items-start space-x-4">
                   <div className="bg-white/10 rounded-2xl p-3">
-                    <feature.icon className="h-6 w-6 text-white" />
+                    <feature.icon className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg mb-1">{feature.title}</h3>
-                    <p className="text-white/80 text-sm">{feature.description}</p>
+                    <h3 className="font-medium text-base mb-1 text-white/90">{feature.title}</h3>
+                    <p className="text-white/70 text-sm">{feature.description}</p>
                   </div>
                 </div>
               ))}
