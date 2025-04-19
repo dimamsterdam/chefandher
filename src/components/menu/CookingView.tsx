@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Course } from "@/types/database.types";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CookingViewProps {
   course: Course;
@@ -17,7 +17,6 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
   const isMobile = useIsMobile();
   const recipe = course.recipe;
   
-  // Reset step to 0 when opening a new recipe
   useEffect(() => {
     if (open) {
       setCurrentStep(0);
@@ -26,13 +25,12 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
 
   if (!recipe) return null;
 
-  // Compile all steps (title, ingredients, then instructions)
   const steps = [
     { type: 'title', content: recipe.title },
     { type: 'ingredients', content: recipe.ingredients },
     ...recipe.instructions.map(instruction => ({
       type: 'instruction',
-      content: instruction.replace(/^Step \d+:\s*/i, '') // Remove "Step X:" prefix
+      content: instruction.replace(/^Step \d+:\s*/i, '')
     }))
   ];
 
@@ -77,7 +75,6 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
       );
     }
     
-    // For instruction steps, calculate the actual instruction step number
     const instructionStepNumber = steps.filter(s => s.type === 'instruction').findIndex(s => s === step) + 1;
     
     return (
@@ -95,7 +92,6 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
         className="h-[100dvh] w-full p-0 sm:max-w-full"
       >
         <div className="absolute inset-0 bg-white flex flex-col">
-          {/* Header */}
           <div className="flex justify-between items-center p-4 border-b">
             <Button 
               variant="ghost" 
@@ -110,17 +106,17 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
                 {currentStep + 1} of {steps.length}
               </span>
             </div>
-            <div className="w-10"></div> {/* Spacer for alignment */}
+            <div className="w-10"></div>
           </div>
           
-          {/* Content */}
           <div className="flex-1 overflow-hidden p-6">
-            <div className="h-full flex items-center justify-center">
-              {renderStepContent()}
-            </div>
+            <ScrollArea className="h-full">
+              <div className="flex items-center justify-center min-h-full">
+                {renderStepContent()}
+              </div>
+            </ScrollArea>
           </div>
           
-          {/* Navigation */}
           <div className="p-4 border-t flex justify-between">
             <Button 
               onClick={goToPreviousStep} 
