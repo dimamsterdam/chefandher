@@ -30,7 +30,10 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
   const steps = [
     { type: 'title', content: recipe.title },
     { type: 'ingredients', content: recipe.ingredients },
-    ...recipe.instructions.map(instruction => ({ type: 'instruction', content: instruction }))
+    ...recipe.instructions.map(instruction => ({
+      type: 'instruction',
+      content: instruction.replace(/^Step \d+:\s*/i, '') // Remove "Step X:" prefix
+    }))
   ];
 
   const goToNextStep = () => {
