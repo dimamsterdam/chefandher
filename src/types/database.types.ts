@@ -12,6 +12,27 @@ export interface MenuDocument {
   updated_at: string
 }
 
+export interface Recipe {
+  id?: string;
+  course_id: string;
+  created_by?: string;
+  title: string;
+  ingredients: string[];
+  instructions: string[];
+  prep_time_minutes: number;
+  cook_time_minutes: number;
+  servings: number;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  order: number;
+  description?: string | null;
+  recipe?: Recipe;
+  dbId?: string;
+}
+
 export interface Database extends BaseDatabase {
   public: {
     Tables: {
