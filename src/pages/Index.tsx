@@ -1,4 +1,5 @@
 
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, ChefHat, Clock, Users, Utensils, ArrowRight } from "lucide-react";
