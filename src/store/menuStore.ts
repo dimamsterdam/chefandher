@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Database } from '@/types/supabase';
+import type { Database } from '@/types/database.types';
 
 type MenuDocument = Database['public']['Tables']['menu_documents']['Row'];
 type DocumentType = Database['public']['Enums']['document_type'];
@@ -38,10 +38,10 @@ interface Course {
 
 interface MenuState {
   name: string;
+  courses: Course[];
   guestCount: number;
   prepDays: number;
   courseCount: number;
-  courses: Course[];
   menuId: string | null;
   menuPlanningComplete: boolean;
   menuGenerated: boolean;
@@ -49,7 +49,10 @@ interface MenuState {
   generatingRecipeForCourse: string | null;
   isGeneratingDocuments: boolean;
   menuDocuments: {
-    [K in DocumentType]: string | null;
+    mise_en_place: string | null;
+    service_instructions: string | null;
+    shopping_list: string | null;
+    recipes: string | null;
   };
   hasUnsavedChanges: boolean;
   originalConfig: {
@@ -105,7 +108,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   menuDocuments: {
     mise_en_place: null,
     service_instructions: null,
-    shopping_list: null
+    shopping_list: null,
+    recipes: null
   },
   hasUnsavedChanges: false,
   originalConfig: null,
@@ -249,7 +253,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         menuDocuments: menuDocuments || {
           mise_en_place: null,
           service_instructions: null,
-          shopping_list: null
+          shopping_list: null,
+          recipes: null
         },
         menuPlanningComplete: !!documents?.length,
         menuGenerated: true,
@@ -365,7 +370,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         menuDocuments: {
           mise_en_place: null,
           service_instructions: null,
-          shopping_list: null
+          shopping_list: null,
+          recipes: null
         }
       });
       try {
@@ -684,7 +690,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     menuDocuments: {
       mise_en_place: null,
       service_instructions: null,
-      shopping_list: null
+      shopping_list: null,
+      recipes: null
     },
     hasUnsavedChanges: false,
     originalConfig: null,
@@ -735,7 +742,8 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       const updatedDocuments = {
         mise_en_place: null,
         service_instructions: null,
-        shopping_list: null
+        shopping_list: null,
+        recipes: null
       } as { [K in DocumentType]: string | null };
 
       documents?.forEach(doc => {

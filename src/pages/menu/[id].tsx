@@ -1,12 +1,17 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Plus, Minus, Trash2, GripVertical, ChefHat, RefreshCw, Loader2, BookOpen, Check, X, Wand2, CheckCircle2, Printer, Pencil, AlertTriangle } from "lucide-react";
+import { Pencil, Check, AlertTriangle, Loader2, Plus } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import ReactMarkdown from 'react-markdown';
-import ReactDOM from 'react-dom/client';
+import { useParams } from "react-router-dom";
+import { MenuConfiguration } from "@/components/menu/MenuConfiguration";
+import { MenuActions } from "@/components/menu/MenuActions";
+import { CourseItem } from "@/components/menu/CourseItem";
+import { MenuDocument } from "@/components/menu/MenuDocument";
+import { CookingView } from "@/components/menu/CookingView";
+import { Course } from "@/types/database.types";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useParams } from "react-router-dom";
 
 const MenuPage = () => {
   const { id } = useParams();
@@ -60,20 +64,18 @@ const MenuPage = () => {
   const [generatingMenu, setGeneratingMenu] = useState(false);
   const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
   const [showEditConfirmation, setShowEditConfirmation] = useState(false);
+  const [cookingViewCourse, setCookingViewCourse] = useState<Course | null>(null);
 
-  const shouldWandBeActive = !name.trim() || !menuGenerated || (menuGenerated && name !== originalMenuName);
-
-  const hasConfigChanged = !menuPlanningComplete && // Only show in edit mode
+  const hasConfigChanged = !menuPlanningComplete && 
     menuGenerated && 
     originalConfig && 
-    courses.length > 0 && // Only show if we have existing courses
+    courses.length > 0 && 
     (
       guestCount !== originalConfig.guestCount ||
       prepDays !== originalConfig.prepDays ||
       courseCount !== originalConfig.courseCount ||
       name !== originalMenuName
     ) && (
-      // Don't show if this is the first generation
       originalConfig.guestCount !== 1 ||
       originalConfig.prepDays !== 1 ||
       originalConfig.courseCount !== 3 ||
@@ -93,19 +95,7 @@ const MenuPage = () => {
     }
   }, [id, loadMenu]);
 
-  console.log('Current loading state:', isLoadingMenu);
-  console.log('Current menu data:', {
-    name,
-    guestCount,
-    prepDays,
-    courses,
-    menuPlanningComplete,
-    menuGenerated,
-    menuDocuments
-  });
-
   if (isLoadingMenu) {
-    console.log('Showing loading state');
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
@@ -162,25 +152,6 @@ const MenuPage = () => {
     }
   };
 
-  const startEditing = (course: { id: string; title: string }) => {
-    setEditingCourseId(course.id);
-    setEditingTitle(course.title);
-  };
-
-  const saveEditing = () => {
-    if (editingCourseId && editingTitle.trim()) {
-      updateCourse(editingCourseId, { title: editingTitle.trim() });
-      setEditingCourseId(null);
-      setEditingTitle("");
-      toast.success("Course title updated");
-    }
-  };
-
-  const cancelEditing = () => {
-    setEditingCourseId(null);
-    setEditingTitle("");
-  };
-
   const handleCompleteMenuPlanning = () => {
     if (courses.length === 0) {
       toast.error("Please add at least one course before completing menu planning");
@@ -227,140 +198,75 @@ const MenuPage = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Create a temporary div to render the markdown
-    const tempDiv = document.createElement('div');
-    const root = ReactDOM.createRoot(tempDiv);
-    root.render(<ReactMarkdown>{content}</ReactMarkdown>);
-
-    // Wait for React to finish rendering
-    setTimeout(() => {
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${documentType}</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-              @media print {
-                @page {
-                  margin: 1.5cm;
-                }
-                body { 
-                  font-family: system-ui, -apple-system, sans-serif;
-                  line-height: 1.4;
-                  margin: 0;
-                  padding: 0;
-                }
-                h1 {
-                  font-size: 1.5em;
-                  margin: 0 0 1em 0;
-                  font-weight: 600;
-                }
-                h2 {
-                  font-size: 1.3em;
-                  margin: 1em 0 0.5em 0;
-                  font-weight: 600;
-                }
-                h3 {
-                  font-size: 1.1em;
-                  margin: 1em 0 0.5em 0;
-                  font-weight: 600;
-                }
-                p {
-                  margin: 0.5em 0;
-                }
-                ul, ol {
-                  margin: 0.5em 0;
-                  padding-left: 2em;
-                }
-                ul { list-style-type: disc; }
-                ol { list-style-type: decimal; }
-                li {
-                  margin: 0.25em 0;
-                }
-                em, i {
-                  font-style: italic;
-                }
-                strong, b {
-                  font-weight: 600;
-                }
-                hr {
-                  margin: 1em 0;
-                  border: none;
-                  border-top: 1px solid #000;
-                }
-              }
-              /* Non-print styles for preview */
-              body {
-                padding: 1.5cm;
-                max-width: 21cm;
-                margin: 0 auto;
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${documentType}</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <style>
+            @media print {
+              @page { margin: 1.5cm; }
+              body { 
                 font-family: system-ui, -apple-system, sans-serif;
                 line-height: 1.4;
+                margin: 0;
+                padding: 0;
               }
-              h1 {
-                font-size: 1.5em;
-                margin: 0 0 1em 0;
-                font-weight: 600;
-              }
-              h2 {
-                font-size: 1.3em;
-                margin: 1em 0 0.5em 0;
-                font-weight: 600;
-              }
-              h3 {
-                font-size: 1.1em;
-                margin: 1em 0 0.5em 0;
-                font-weight: 600;
-              }
-              p {
-                margin: 0.5em 0;
-              }
-              ul, ol {
-                margin: 0.5em 0;
-                padding-left: 2em;
-              }
+              h1 { font-size: 1.5em; margin: 0 0 1em 0; font-weight: 600; }
+              h2 { font-size: 1.3em; margin: 1em 0 0.5em 0; font-weight: 600; }
+              h3 { font-size: 1.1em; margin: 1em 0 0.5em 0; font-weight: 600; }
+              p { margin: 0.5em 0; }
+              ul, ol { margin: 0.5em 0; padding-left: 2em; }
               ul { list-style-type: disc; }
               ol { list-style-type: decimal; }
-              li {
-                margin: 0.25em 0;
-              }
-              em, i {
-                font-style: italic;
-              }
-              strong, b {
-                font-weight: 600;
-              }
-              hr {
-                margin: 1em 0;
-                border: none;
-                border-top: 1px solid #000;
-              }
-            </style>
-          </head>
-          <body>
-            <h1>${documentType}</h1>
-            ${tempDiv.innerHTML}
-            <script>
-              window.onload = function() {
-                window.print();
-                window.onafterprint = function() {
-                  window.close();
-                };
+              li { margin: 0.25em 0; }
+              em, i { font-style: italic; }
+              strong, b { font-weight: 600; }
+              hr { margin: 1em 0; border: none; border-top: 1px solid #000; }
+            }
+            body {
+              padding: 1.5cm;
+              max-width: 21cm;
+              margin: 0 auto;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${documentType}</h1>
+          <div class="markdown-content"></div>
+          <script>
+            document.querySelector('.markdown-content').innerHTML = ${JSON.stringify(content)};
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() {
+                window.close();
               };
-            </script>
-          </body>
-        </html>
-      `;
+            };
+          </script>
+        </body>
+      </html>
+    `;
 
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-    }, 100);
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  const handleOpenCookingView = (course: Course) => {
+    setCookingViewCourse(course);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       <div className="container mx-auto px-4 py-8">
+        {cookingViewCourse && (
+          <CookingView 
+            course={cookingViewCourse} 
+            open={!!cookingViewCourse} 
+            onClose={() => setCookingViewCourse(null)} 
+          />
+        )}
+
         <Dialog open={showEditConfirmation} onOpenChange={setShowEditConfirmation}>
           <DialogContent>
             <DialogHeader>
@@ -447,110 +353,18 @@ const MenuPage = () => {
             </Button>
           </div>
           
-          {/* Menu Details */}
-          <div className="space-y-6 mb-8">
-            <div>
-              <label className="block text-sm font-medium mb-2">Menu Name</label>
-              <div className="flex items-center space-x-2 max-w-md">
-                {menuPlanningComplete ? (
-                  <div className="text-lg font-medium">{name}</div>
-                ) : (
-                  <Input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter menu name"
-                    className="flex-grow"
-                  />
-                )}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium mb-2">Number of Guests</label>
-                <div className="flex items-center space-x-2">
-                  {menuPlanningComplete ? (
-                    <div className="text-lg font-medium">{guestCount}</div>
-                  ) : (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className="min-w-[3rem] text-center">{guestCount}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setGuestCount(guestCount + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">How many courses</label>
-                <div className="flex items-center space-x-2">
-                  {menuPlanningComplete ? (
-                    <div className="text-lg font-medium">{desiredCourseCount}</div>
-                  ) : (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setDesiredCourseCount(Math.max(1, desiredCourseCount - 1))}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className="min-w-[3rem] text-center">{desiredCourseCount}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setDesiredCourseCount(desiredCourseCount + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2">Preparation Days</label>
-                <div className="flex items-center space-x-2">
-                  {menuPlanningComplete ? (
-                    <div className="text-lg font-medium">{prepDays}</div>
-                  ) : (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setPrepDays(Math.max(1, prepDays - 1))}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <span className="min-w-[3rem] text-center">{prepDays}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setPrepDays(prepDays + 1)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+          <MenuConfiguration
+            name={name}
+            guestCount={guestCount}
+            desiredCourseCount={desiredCourseCount}
+            prepDays={prepDays}
+            menuPlanningComplete={menuPlanningComplete}
+            onNameChange={setName}
+            onGuestCountChange={setGuestCount}
+            onDesiredCourseCountChange={setDesiredCourseCount}
+            onPrepDaysChange={setPrepDays}
+          />
 
-          {/* Configuration Warning */}
           {hasConfigChanged && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-2">
@@ -565,48 +379,15 @@ const MenuPage = () => {
             </div>
           )}
 
-          {/* Generate Menu Buttons */}
           {!menuPlanningComplete && (
-            <div className="flex justify-center space-x-4 my-6">
-              <Button
-                onClick={() => handleGenerateMenu(true)}
-                disabled={!name.trim() || generatingMenu || showRegenerationConfirmation}
-                className="min-w-[200px]"
-              >
-                {generatingMenu ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {showRegenerationConfirmation ? "Confirm Regeneration..." : "Generating Menu & Recipes..."}
-                  </>
-                ) : (
-                  <>
-                    <ChefHat className="h-4 w-4 mr-2" />
-                    Generate Menu with Recipes
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleGenerateMenu(false)}
-                disabled={!name.trim() || generatingMenu || showRegenerationConfirmation}
-                className="min-w-[200px]"
-              >
-                {generatingMenu ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {showRegenerationConfirmation ? "Confirm Regeneration..." : "Generating Menu..."}
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Generate Menu Only
-                  </>
-                )}
-              </Button>
-            </div>
+            <MenuActions
+              name={name}
+              generatingMenu={generatingMenu}
+              showRegenerationConfirmation={showRegenerationConfirmation}
+              onGenerateMenu={handleGenerateMenu}
+            />
           )}
 
-          {/* Courses */}
           <div className="space-y-6">
             <h2 className="text-xl font-semibold">Courses</h2>
             
@@ -617,184 +398,37 @@ const MenuPage = () => {
               className="space-y-4"
             >
               {courses.map((course) => (
-                <div key={course.id} className="flex flex-col">
-                  <Reorder.Item
-                    value={course}
-                    className={`flex flex-col p-4 glass rounded-lg ${menuPlanningComplete ? 'cursor-default' : 'cursor-move'} bg-white transition-colors ${course.recipe ? 'bg-purple-50/50' : ''}`}
-                    dragListener={!menuPlanningComplete}
-                  >
-                    <div className="flex items-center space-x-4">
-                      {!menuPlanningComplete && (
-                        <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      )}
-                      {editingCourseId === course.id ? (
-                        <div className="flex-grow flex items-center gap-2">
-                          <Input
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            className="flex-grow"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                saveEditing();
-                              }
-                            }}
-                            autoFocus
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={saveEditing}
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={cancelEditing}
-                            className="text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex-grow">
-                          <span 
-                            className={`font-medium ${!menuPlanningComplete ? 'hover:text-purple-600 cursor-pointer' : ''}`}
-                            onClick={() => !menuPlanningComplete && startEditing(course)}
-                          >
-                            {course.title}
-                          </span>
-                          {course.description && (
-                            <p className="text-sm text-gray-600 italic mt-0.5">
-                              {course.description}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        {course.recipe && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setOpenRecipe(openRecipe === course.id ? null : course.id)}
-                            className={`transition-colors ${openRecipe === course.id ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-                          >
-                            <BookOpen className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {!menuPlanningComplete && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleGenerateRecipe(course.id)}
-                              disabled={!!generatingFor || generatingRecipeForCourse !== null}
-                              className={`relative ${
-                                course.recipe 
-                                  ? 'text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300' 
-                                  : ''
-                              } ${
-                                generatingRecipeForCourse === course.id 
-                                  ? 'bg-purple-50' 
-                                  : ''
-                              }`}
-                            >
-                              {generatingRecipeForCourse === course.id ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span className="sr-only">Generating recipe...</span>
-                                </>
-                              ) : course.recipe ? (
-                                <RefreshCw className="h-4 w-4" />
-                              ) : (
-                                <ChefHat className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeCourse(course.id)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              disabled={generatingFor === course.id || generatingRecipeForCourse === course.id}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </Reorder.Item>
-
-                  {course.recipe && openRecipe === course.id && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ 
-                        opacity: 0,
-                        height: 0,
-                        transition: {
-                          duration: 0.15,
-                          height: {
-                            duration: 0.15,
-                            ease: "easeIn"
-                          },
-                          opacity: {
-                            duration: 0.1,
-                            ease: "easeIn"
-                          }
-                        }
-                      }}
-                      transition={{ 
-                        duration: 0.2,
-                        height: {
-                          duration: 0.2,
-                          ease: "easeOut"
-                        },
-                        opacity: {
-                          duration: 0.1,
-                          ease: "easeOut"
-                        }
-                      }}
-                      className="mt-2 ml-4 glass rounded-lg bg-white p-4 overflow-hidden"
-                    >
-                      <div className="space-y-4">
-                        {course.recipe.ingredients && course.recipe.ingredients.length > 0 && (
-                          <div>
-                            <h4 className="font-medium mb-2 text-gray-700">Ingredients:</h4>
-                            <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                              {course.recipe.ingredients.map((ingredient, idx) => (
-                                <li key={idx}>{ingredient}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {course.recipe.instructions && course.recipe.instructions.length > 0 && (
-                          <div>
-                            <h4 className="font-medium mb-2 text-gray-700">Instructions:</h4>
-                            <ol className="list-decimal pl-5 space-y-2 text-gray-600">
-                              {course.recipe.instructions.map((instruction, idx) => (
-                                <li key={idx}>{instruction}</li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-                        {course.recipe.prep_time_minutes && course.recipe.cook_time_minutes && (
-                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                            <div>
-                              <span className="font-medium">Prep Time:</span>{" "}
-                              {course.recipe.prep_time_minutes} minutes
-                            </div>
-                            <div>
-                              <span className="font-medium">Cook Time:</span>{" "}
-                              {course.recipe.cook_time_minutes} minutes
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
+                <CourseItem
+                  key={course.id}
+                  course={course}
+                  isEditing={editingCourseId === course.id}
+                  generatingFor={generatingFor}
+                  generatingRecipeForCourse={generatingRecipeForCourse}
+                  menuPlanningComplete={menuPlanningComplete}
+                  onStartEditing={(course) => {
+                    setEditingCourseId(course.id);
+                    setEditingTitle(course.title);
+                  }}
+                  onSaveEditing={() => {
+                    if (editingCourseId && editingTitle.trim()) {
+                      updateCourse(editingCourseId, { title: editingTitle.trim() });
+                      setEditingCourseId(null);
+                      setEditingTitle("");
+                      toast.success("Course title updated");
+                    }
+                  }}
+                  onCancelEditing={() => {
+                    setEditingCourseId(null);
+                    setEditingTitle("");
+                  }}
+                  onGenerateRecipe={handleGenerateRecipe}
+                  onRemoveCourse={removeCourse}
+                  editingTitle={editingTitle}
+                  onEditingTitleChange={(value) => setEditingTitle(value)}
+                  openRecipe={openRecipe}
+                  onToggleRecipe={setOpenRecipe}
+                  onOpenCookingView={handleOpenCookingView}
+                />
               ))}
             </Reorder.Group>
 
@@ -821,7 +455,6 @@ const MenuPage = () => {
           </div>
         </motion.div>
 
-        {/* Menu Documents */}
         {menuPlanningComplete && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -840,230 +473,41 @@ const MenuPage = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Mise en Place */}
-              <div className="flex flex-col p-4 glass rounded-lg bg-white transition-colors">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Mise en Place</h3>
-                  <div className="flex items-center gap-2">
-                    {menuDocuments.mise_en_place && !isGeneratingDocuments && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePrintDocument('Mise en Place', menuDocuments.mise_en_place!)}
-                        className="text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(menuDocuments.mise_en_place === null || isGeneratingDocuments) ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled
-                        className="text-purple-600"
-                      >
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setOpenRecipe(openRecipe === 'mise_en_place' ? null : 'mise_en_place')}
-                        className={`transition-colors ${openRecipe === 'mise_en_place' ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-                      >
-                        <BookOpen className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {openRecipe === 'mise_en_place' && menuDocuments.mise_en_place && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ 
-                      opacity: 0,
-                      height: 0,
-                      transition: {
-                        duration: 0.15,
-                        height: {
-                          duration: 0.15,
-                          ease: "easeIn"
-                        },
-                        opacity: {
-                          duration: 0.1,
-                          ease: "easeIn"
-                        }
-                      }
-                    }}
-                    transition={{ 
-                      duration: 0.2,
-                      height: {
-                        duration: 0.2,
-                        ease: "easeOut"
-                      },
-                      opacity: {
-                        duration: 0.1,
-                        ease: "easeOut"
-                      }
-                    }}
-                    className="mt-4 pt-4 border-t overflow-hidden"
-                  >
-                    <div className="prose max-w-none">
-                      <ReactMarkdown>{menuDocuments.mise_en_place}</ReactMarkdown>
-                    </div>
-                  </motion.div>
-                )}
-              </div>
+              <MenuDocument
+                title="Recipes"
+                content={menuDocuments.recipes}
+                isOpen={openRecipe === 'recipes'}
+                isGenerating={isGeneratingDocuments}
+                onToggle={() => setOpenRecipe(openRecipe === 'recipes' ? null : 'recipes')}
+                onPrint={(content) => handlePrintDocument('Recipes', content)}
+              />
 
-              {/* Service Instructions */}
-              <div className="flex flex-col p-4 glass rounded-lg bg-white transition-colors">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Service Instructions</h3>
-                  <div className="flex items-center gap-2">
-                    {menuDocuments.service_instructions && !isGeneratingDocuments && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePrintDocument('Service Instructions', menuDocuments.service_instructions!)}
-                        className="text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(menuDocuments.service_instructions === null || isGeneratingDocuments) ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled
-                        className="text-purple-600"
-                      >
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setOpenRecipe(openRecipe === 'service_instructions' ? null : 'service_instructions')}
-                        className={`transition-colors ${openRecipe === 'service_instructions' ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-                      >
-                        <BookOpen className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {openRecipe === 'service_instructions' && menuDocuments.service_instructions && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ 
-                      opacity: 0,
-                      height: 0,
-                      transition: {
-                        duration: 0.15,
-                        height: {
-                          duration: 0.15,
-                          ease: "easeIn"
-                        },
-                        opacity: {
-                          duration: 0.1,
-                          ease: "easeIn"
-                        }
-                      }
-                    }}
-                    transition={{ 
-                      duration: 0.2,
-                      height: {
-                        duration: 0.2,
-                        ease: "easeOut"
-                      },
-                      opacity: {
-                        duration: 0.1,
-                        ease: "easeOut"
-                      }
-                    }}
-                    className="mt-4 pt-4 border-t overflow-hidden"
-                  >
-                    <div className="prose max-w-none">
-                      <ReactMarkdown>{menuDocuments.service_instructions}</ReactMarkdown>
-                    </div>
-                  </motion.div>
-                )}
-              </div>
+              <MenuDocument
+                title="Mise en Place"
+                content={menuDocuments.mise_en_place}
+                isOpen={openRecipe === 'mise_en_place'}
+                isGenerating={isGeneratingDocuments}
+                onToggle={() => setOpenRecipe(openRecipe === 'mise_en_place' ? null : 'mise_en_place')}
+                onPrint={(content) => handlePrintDocument('Mise en Place', content)}
+              />
 
-              {/* Shopping List */}
-              <div className="flex flex-col p-4 glass rounded-lg bg-white transition-colors">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Shopping List</h3>
-                  <div className="flex items-center gap-2">
-                    {menuDocuments.shopping_list && !isGeneratingDocuments && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePrintDocument('Shopping List', menuDocuments.shopping_list!)}
-                        className="text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {(menuDocuments.shopping_list === null || isGeneratingDocuments) ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled
-                        className="text-purple-600"
-                      >
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setOpenRecipe(openRecipe === 'shopping_list' ? null : 'shopping_list')}
-                        className={`transition-colors ${openRecipe === 'shopping_list' ? 'bg-purple-100 text-purple-700' : 'text-purple-600 hover:bg-purple-50'}`}
-                      >
-                        <BookOpen className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {openRecipe === 'shopping_list' && menuDocuments.shopping_list && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ 
-                      opacity: 0,
-                      height: 0,
-                      transition: {
-                        duration: 0.15,
-                        height: {
-                          duration: 0.15,
-                          ease: "easeIn"
-                        },
-                        opacity: {
-                          duration: 0.1,
-                          ease: "easeIn"
-                        }
-                      }
-                    }}
-                    transition={{ 
-                      duration: 0.2,
-                      height: {
-                        duration: 0.2,
-                        ease: "easeOut"
-                      },
-                      opacity: {
-                        duration: 0.1,
-                        ease: "easeOut"
-                      }
-                    }}
-                    className="mt-4 pt-4 border-t overflow-hidden"
-                  >
-                    <div className="prose max-w-none">
-                      <ReactMarkdown>{menuDocuments.shopping_list}</ReactMarkdown>
-                    </div>
-                  </motion.div>
-                )}
-              </div>
+              <MenuDocument
+                title="Service Instructions"
+                content={menuDocuments.service_instructions}
+                isOpen={openRecipe === 'service_instructions'}
+                isGenerating={isGeneratingDocuments}
+                onToggle={() => setOpenRecipe(openRecipe === 'service_instructions' ? null : 'service_instructions')}
+                onPrint={(content) => handlePrintDocument('Service Instructions', content)}
+              />
+
+              <MenuDocument
+                title="Shopping List"
+                content={menuDocuments.shopping_list}
+                isOpen={openRecipe === 'shopping_list'}
+                isGenerating={isGeneratingDocuments}
+                onToggle={() => setOpenRecipe(openRecipe === 'shopping_list' ? null : 'shopping_list')}
+                onPrint={(content) => handlePrintDocument('Shopping List', content)}
+              />
             </div>
           </motion.div>
         )}
@@ -1072,4 +516,4 @@ const MenuPage = () => {
   );
 };
 
-export default MenuPage; 
+export default MenuPage;
