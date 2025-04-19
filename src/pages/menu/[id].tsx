@@ -84,21 +84,13 @@ const MenuPage = () => {
 
   useEffect(() => {
     console.log('useEffect triggered with id:', id);
-    if (id) {
+    if (id) { 
       console.log('Loading menu with id:', id);
       loadMenu(id).then(() => {
         console.log('Menu loaded successfully');
-        console.log('Current menu state:', {
-          name,
-          guestCount,
-          prepDays,
-          courses,
-          menuPlanningComplete,
-          menuGenerated,
-          menuDocuments
-        });
       }).catch(error => {
         console.error('Error loading menu:', error);
+        toast.error('Failed to load menu');
       });
     }
   }, [id, loadMenu]);

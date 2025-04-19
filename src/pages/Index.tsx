@@ -3,20 +3,29 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, ChefHat, Clock, Users, Utensils, ArrowRight, Star, Rocket, Award } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Loader2 } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { menus, reset, setName, fetchMenus } = useMenuStore();
-  
-  React.useEffect(() => {
-    fetchMenus();
-  }, [fetchMenus]);
+  const { createNewMenu } = useMenuStore();
+  const [menuName, setMenuName] = useState("");
+  const [isCreatingMenu, setIsCreatingMenu] = useState(false);
 
-  const handleCreateMenu = () => {
-    reset();
-    setName("New Menu");
-    navigate("/menu/new");
+  const handleCreateMenu = async () => {
+    setIsCreatingMenu(true);
+    try {
+      const newMenuId = await createNewMenu();
+      if (newMenuId) {
+        navigate(`/menu/${newMenuId}`);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } catch (error) {
+      console.error('Failed to create or navigate to new menu:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsCreatingMenu(false);
+    }
   };
 
   const features = [
@@ -73,24 +82,37 @@ const Index = () => {
           </div>
         </div>
 
-        {menus.length === 0 ? (
-          <div className="text-center">
-            <Button 
-              onClick={handleCreateMenu}
-              size="lg"
-              className="text-lg px-8 py-6 shadow-lg hover:shadow-xl transition-all"
-            >
-              Create Your First Menu
-              <ArrowRight className="ml-2" />
-            </Button>
-          </div>
-        ) : (
-          <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Recently Created Menus</h2>
-              <Button onClick={handleCreateMenu}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create New Menu
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Create a New Menu</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Menu Name (Optional)</label>
+                <Input
+                  type="text"
+                  value={menuName}
+                  onChange={(e) => setMenuName(e.target.value)}
+                  placeholder="Default: 'Untitled Menu'"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !isCreatingMenu) {
+                      handleCreateMenu();
+                    }
+                  }}
+                />
+              </div>
+              <Button
+                onClick={handleCreateMenu}
+                className="w-full"
+                disabled={isCreatingMenu}
+              >
+                {isCreatingMenu ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Menu'
+                )}
+
               </Button>
             </div>
 

@@ -36,23 +36,38 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 export function AppSidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { profile, signOut } = useAuthStore()
-  const { menus, isLoadingMenus, fetchMenus, menuPlanningComplete, reset, deleteMenu } = useMenuStore()
+  const { menus, isLoadingMenus, fetchMenus, menuPlanningComplete, reset, deleteMenu, saveMenu, createNewMenu } = useMenuStore()
   const [searchQuery, setSearchQuery] = useState("")
   const [menuToDelete, setMenuToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCreatingMenu, setIsCreatingMenu] = useState(false)
 
   useEffect(() => {
     fetchMenus()
   }, [fetchMenus])
 
-  const handleCreateNewMenu = () => {
-    reset();
-    navigate("/menu/new");
+  const handleCreateNewMenu = async () => {
+    setIsCreatingMenu(true);
+    try {
+      const newMenuId = await createNewMenu();
+      if (newMenuId) {
+        await fetchMenus();
+        navigate(`/menu/${newMenuId}`);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } catch (error) {
+      console.error('Failed to create or navigate to new menu:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsCreatingMenu(false);
+    }
   };
 
   const handleDeleteMenu = async () => {
@@ -96,8 +111,13 @@ export function AppSidebar() {
               onClick={handleCreateNewMenu}
               className="flex items-center justify-center h-10 w-10 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors duration-200"
               title="Create New Menu"
+              disabled={isCreatingMenu}
             >
-              <Plus className="h-5 w-5" />
+              {isCreatingMenu ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Plus className="h-5 w-5" />
+              )}
             </button>
           </div>
         </SidebarHeader>
