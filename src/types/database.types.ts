@@ -19,6 +19,15 @@ export interface Database extends BaseDatabase {
         Row: MenuDocument
         Insert: Omit<MenuDocument, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<MenuDocument, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: [
+          {
+            foreignKeyName: "menu_documents_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "menus"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       courses: BaseDatabase['public']['Tables']['courses']
       menus: BaseDatabase['public']['Tables']['menus']
