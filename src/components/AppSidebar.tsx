@@ -121,7 +121,7 @@ export function AppSidebar() {
             </button>
           </div>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent className="bg-white">
           <SidebarGroup>
             <SidebarGroupLabel className="text-xs font-bold text-purple-950/70 px-3 py-3 uppercase tracking-wider">
               Your Menus
@@ -185,7 +185,7 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter className="pb-4">
+        <SidebarFooter className="pb-4 bg-white">
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
