@@ -3,8 +3,6 @@ import { Database as BaseDatabase } from '@/types/supabase'
 
 export type DocumentType = 'mise_en_place' | 'service_instructions' | 'shopping_list' | 'recipes'
 
-export type CourseType = 'starter' | 'main' | 'side' | 'dessert'
-
 export interface MenuDocument {
   id: string
   menu_id: string
@@ -33,8 +31,6 @@ export interface Course {
   description?: string | null;
   recipe?: Recipe;
   dbId?: string;
-  courseType?: CourseType;
-  parentCourseId?: string | null;
 }
 
 export interface Database extends BaseDatabase {
@@ -63,7 +59,6 @@ export interface Database extends BaseDatabase {
     Functions: BaseDatabase['public']['Functions']
     Enums: {
       document_type: DocumentType
-      course_type: CourseType
     }
     CompositeTypes: BaseDatabase['public']['CompositeTypes']
   }

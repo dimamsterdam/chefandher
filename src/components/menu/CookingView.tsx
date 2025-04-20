@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,11 +54,6 @@ export const CookingView = ({ course, open, onClose }: CookingViewProps) => {
         <div className="flex flex-col items-center justify-center h-full">
           <h1 className="text-4xl md:text-5xl font-bold text-center mb-4">{step.content}</h1>
           <p className="text-2xl text-gray-600 text-center">Recipe for {course.title}</p>
-          {course.courseType && (
-            <p className="text-xl text-purple-600 text-center mt-2 font-medium capitalize">
-              Course Type: {course.courseType}
-            </p>
-          )}
           <div className="mt-6 text-xl text-gray-500">
             <p><span className="font-medium">Prep Time:</span> {recipe.prep_time_minutes} min</p>
             <p><span className="font-medium">Cook Time:</span> {recipe.cook_time_minutes} min</p>

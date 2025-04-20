@@ -11,7 +11,7 @@ import { MenuActions } from "@/components/menu/MenuActions";
 import { CourseItem } from "@/components/menu/CourseItem";
 import { MenuDocument } from "@/components/menu/MenuDocument";
 import { CookingView } from "@/components/menu/CookingView";
-import { Course, CourseType } from "@/types/database.types";
+import { Course } from "@/types/database.types";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const MenuPage = () => {
   const { id } = useParams();
@@ -39,9 +38,6 @@ const MenuPage = () => {
     reorderCourses,
     generateRecipe,
     updateCourse,
-    updateCourseType,
-    setParentCourse,
-    getMainCourses,
     generateMenu,
     menuPlanningComplete,
     setMenuPlanningComplete,
@@ -69,8 +65,6 @@ const MenuPage = () => {
   const [desiredCourseCount, setDesiredCourseCount] = useState(courses.length || 3);
   const [showEditConfirmation, setShowEditConfirmation] = useState(false);
   const [cookingViewCourse, setCookingViewCourse] = useState<Course | null>(null);
-  const [newCourseType, setNewCourseType] = useState<CourseType>("main");
-  const mainCourses = getMainCourses();
 
   const hasConfigChanged = !menuPlanningComplete && 
     menuGenerated && 
@@ -117,17 +111,9 @@ const MenuPage = () => {
     addCourse({
       title: newCourseTitle,
       order: courses.length,
-      courseType: newCourseType,
     });
     setNewCourseTitle("");
     toast.success("Course added successfully");
-  };
-
-  const handleUpdateCourseType = (courseId: string, courseType: CourseType) => {
-    updateCourseType(courseId, courseType);
-    if (courseType !== 'side') {
-      setParentCourse(courseId, null);
-    }
   };
 
   const handleGenerateRecipe = async (courseId: string) => {
@@ -442,54 +428,28 @@ const MenuPage = () => {
                   openRecipe={openRecipe}
                   onToggleRecipe={setOpenRecipe}
                   onOpenCookingView={handleOpenCookingView}
-                  onChangeCourseType={handleUpdateCourseType}
-                  onSetParentCourse={setParentCourse}
-                  availableMainCourses={mainCourses}
                 />
               ))}
             </Reorder.Group>
 
             {!menuPlanningComplete && (
-              <div className="flex flex-col space-y-2">
-                <div className="flex space-x-2">
-                  <Input
-                    type="text"
-                    value={newCourseTitle}
-                    onChange={(e) => setNewCourseTitle(e.target.value)}
-                    placeholder="Enter course title"
-                    className="flex-grow"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddCourse();
-                      }
-                    }}
-                  />
-                  <Select
-                    value={newCourseType}
-                    onValueChange={(value) => setNewCourseType(value as CourseType)}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="starter">Starter</SelectItem>
-                      <SelectItem value="main">Main</SelectItem>
-                      <SelectItem value="side">Side</SelectItem>
-                      <SelectItem value="dessert">Dessert</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleAddCourse}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Course
-                  </Button>
-                </div>
-                {newCourseType === 'side' && mainCourses.length > 0 && (
-                  <div className="flex items-center ml-4 text-sm text-gray-500">
-                    <span>
-                      Note: After adding a side dish, you can associate it with a main course by editing it.
-                    </span>
-                  </div>
-                )}
+              <div className="flex space-x-2">
+                <Input
+                  type="text"
+                  value={newCourseTitle}
+                  onChange={(e) => setNewCourseTitle(e.target.value)}
+                  placeholder="Enter course title"
+                  className="flex-grow"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddCourse();
+                    }
+                  }}
+                />
+                <Button onClick={handleAddCourse}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Course
+                </Button>
               </div>
             )}
           </div>
