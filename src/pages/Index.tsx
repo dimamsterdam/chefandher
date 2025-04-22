@@ -18,7 +18,7 @@ const Index = () => {
     try {
       const newMenuId = await createNewMenu();
       if (newMenuId) {
-        navigate(`/menu/${newMenuId}`);
+        navigate(`/menu/${newMenuId}?focus=name`);
       } else {
         toast.error('An unexpected error occurred');
       }
