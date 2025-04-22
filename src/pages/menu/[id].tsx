@@ -20,7 +20,6 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils";
-import { generate } from "lucide-react";
 import { Course } from "@/components/Course";
 
 const MenuPage = () => {
@@ -401,7 +400,7 @@ const MenuPage = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => cancelMenuRegeneration()}>Cancel</Button>
-            <Button variant="primary" onClick={() => confirmMenuRegeneration()}>Regenerate</Button>
+            <Button variant="default" onClick={() => confirmMenuRegeneration()}>Regenerate</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
