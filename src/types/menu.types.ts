@@ -2,7 +2,7 @@
 import type { Database } from '@/types/database.types';
 
 export type MenuDocument = Database['public']['Tables']['menu_documents']['Row'];
-export type DocumentType = Database['public']['Enums']['document_type'];
+export type DocumentType = 'mise_en_place' | 'service_instructions' | 'shopping_list' | 'recipes';
 
 export interface Menu {
   id: string;

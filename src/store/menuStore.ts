@@ -1,8 +1,9 @@
+
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MenuState, Course } from '@/types/menu.types';
-import { generateRecipeForCourse } from '@/utils/menuUtils';
+import { MenuState, Course, DocumentType } from '@/types/menu.types';
+import { generateRecipeForCourse, withRetry } from '@/utils/menuUtils';
 import { fetchUserMenus, saveMenu, saveCourses, deleteMenu as deleteMenuService } from '@/services/menuService';
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -158,10 +159,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         return acc;
       }, {} as Record<string, any>);
 
-      const menuDocuments = documents?.reduce((acc, doc) => {
-        acc[doc.document_type] = doc.content;
+      const menuDocumentsMap = documents?.reduce((acc, doc) => {
+        acc[doc.document_type as keyof typeof acc] = doc.content;
         return acc;
-      }, {} as { [K in DocumentType]: string | null });
+      }, {
+        mise_en_place: null,
+        service_instructions: null,
+        shopping_list: null,
+        recipes: null
+      } as Record<DocumentType, string | null>);
 
       const formattedCourses = courses?.map(course => {
         console.log('Processing course:', course);
@@ -195,12 +201,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         guestCount: menu.guest_count,
         prepDays: menu.prep_days,
         courses: formattedCourses,
-        menuDocuments: menuDocuments || {
-          mise_en_place: null,
-          service_instructions: null,
-          shopping_list: null,
-          recipes: null
-        },
+        menuDocuments: menuDocumentsMap,
         menuPlanningComplete: !!documents?.length,
         menuGenerated: true,
         originalMenuName: menu.name,
@@ -545,10 +546,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         service_instructions: null,
         shopping_list: null,
         recipes: null
-      } as { [K in DocumentType]: string | null };
+      } as Record<DocumentType, string | null>;
 
       documents?.forEach(doc => {
-        updatedDocuments[doc.document_type] = doc.content;
+        updatedDocuments[doc.document_type as keyof typeof updatedDocuments] = doc.content;
       });
 
       set({ menuDocuments: updatedDocuments });

@@ -74,43 +74,47 @@ const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Set up custom fetch handling with timeout
-const originalFetch = supabaseClient.rest.headers;
-supabaseClient.rest.headers = async (url, options = {}) => {
-  const customOptions = { ...options };
+// Set up custom fetch interceptor to monitor connection health
+const originalFetch = window.fetch;
+window.fetch = async (input, init) => {
+  const isSupabaseFetch = typeof input === 'string' && input.includes(supabaseUrl);
   
-  try {
-    // Set a timeout to abort long-running requests
+  if (isSupabaseFetch) {
     const controller = new AbortController();
-    if (!customOptions.signal) {
-      customOptions.signal = controller.signal;
-    }
-    
     const timeoutId = setTimeout(() => {
       controller.abort();
-      console.warn('Request timeout for URL:', url);
+      console.warn('Request timeout for URL:', input);
     }, 10000);
     
-    const response = await originalFetch(url, customOptions);
-    
-    clearTimeout(timeoutId);
-    
-    // Update connection health tracking on successful responses
-    if (response.ok) {
-      lastSuccessfulOperation = Date.now();
-      connectionHealthy = true;
+    const customInit = { ...init };
+    if (!customInit.signal) {
+      customInit.signal = controller.signal;
     }
     
-    return response;
-  } catch (error) {
-    // Track connection health issues
-    if (error instanceof Error) {
-      if (error.name === 'TypeError' || error.message.includes('network')) {
-        connectionHealthy = false;
+    try {
+      const response = await originalFetch(input, customInit);
+      clearTimeout(timeoutId);
+      
+      // Update connection health tracking on successful responses
+      if (response.ok) {
+        lastSuccessfulOperation = Date.now();
+        connectionHealthy = true;
       }
+      
+      return response;
+    } catch (error) {
+      // Track connection health issues
+      clearTimeout(timeoutId);
+      if (error instanceof Error) {
+        if (error.name === 'TypeError' || error.message.includes('network')) {
+          connectionHealthy = false;
+        }
+      }
+      throw error;
     }
-    throw error;
   }
+  
+  return originalFetch(input, init);
 };
 
 // Check initial session state and set up token refresh monitoring
