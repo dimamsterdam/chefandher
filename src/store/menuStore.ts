@@ -91,6 +91,40 @@ interface MenuState {
   cancelMenuRegeneration: () => void;
   deleteMenu: (menuId: string) => Promise<void>;
   createNewMenu: () => Promise<string | null>;
+  retryFetchMenus: () => Promise<void>;
+}
+
+const MAX_RETRIES = 3;
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function withRetry<T>(
+  operation: () => Promise<T>, 
+  maxRetries: number = MAX_RETRIES,
+  retryMessage: string = 'Retrying operation...'
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const backoffTime = Math.min(2 ** attempt * 300, 3000);
+        console.log(`Attempt ${attempt}/${maxRetries}: ${retryMessage} (waiting ${backoffTime}ms)`);
+        await delay(backoffTime);
+      }
+      
+      return await operation();
+    } catch (error) {
+      console.error(`Operation failed (attempt ${attempt}/${maxRetries}):`, error);
+      lastError = error;
+      
+      if (attempt === maxRetries) {
+        break;
+      }
+    }
+  }
+  
+  throw lastError;
 }
 
 export const useMenuStore = create<MenuState>((set, get) => ({
@@ -121,24 +155,54 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   fetchMenus: async () => {
     set({ isLoadingMenus: true });
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Beginning fetchMenus operation');
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Session error in fetchMenus:', sessionError);
+        throw sessionError;
+      }
+      
       if (!session) {
+        console.log('No active session found in fetchMenus');
         set({ menus: [], isLoadingMenus: false });
         return;
       }
+      
+      console.log('Session found, user ID:', session.user.id);
 
-      const { data: menus, error } = await supabase
-        .from('menus')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
+      const { data: menus, error } = await withRetry(
+        async () => supabase
+          .from('menus')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false }),
+        3,
+        'Retrying menu fetch operation'
+      );
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error in fetchMenus after retries:', error);
+        throw error;
+      }
+      
+      console.log(`Successfully fetched ${menus?.length || 0} menus`);
       set({ menus: menus || [], isLoadingMenus: false });
     } catch (error) {
       console.error('Error fetching menus:', error);
-      toast.error('Failed to fetch menus');
+      toast.error('Failed to fetch menus. Please try again.');
       set({ isLoadingMenus: false });
+    }
+  },
+  retryFetchMenus: async () => {
+    toast.info('Retrying menu fetch...');
+    
+    try {
+      await get().fetchMenus();
+      toast.success('Menus refreshed successfully');
+    } catch (error) {
+      console.error('Failed to retry fetching menus:', error);
+      toast.error('Menu refresh failed. Please check your connection.');
     }
   },
   loadMenu: async (menuId: string) => {
@@ -170,44 +234,79 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     try {
       console.log('Loading menu with ID:', menuId);
       
-      const { data: menu, error: menuError } = await supabase
-        .from('menus')
-        .select('*')
-        .eq('id', menuId)
-        .single();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Session error in loadMenu:', sessionError);
+        throw new Error('Authentication error: ' + sessionError.message);
+      }
+      
+      if (!session) {
+        console.error('No active session found in loadMenu');
+        throw new Error('No authenticated session available');
+      }
+      
+      const { data: menu, error: menuError } = await withRetry(
+        async () => supabase
+          .from('menus')
+          .select('*')
+          .eq('id', menuId)
+          .single(),
+        3,
+        'Retrying menu load operation'
+      );
 
       if (menuError) throw menuError;
       console.log('Loaded menu:', menu);
 
-      const { data: courses, error: coursesError } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('menu_id', menuId)
-        .order('order', { ascending: true });
+      const { data: courses, error: coursesError } = await withRetry(
+        async () => supabase
+          .from('courses')
+          .select('*')
+          .eq('menu_id', menuId)
+          .order('order', { ascending: true }),
+        3,
+        'Retrying courses fetch operation'
+      );
 
       if (coursesError) throw coursesError;
       console.log('Loaded courses:', courses);
 
       const courseIds = courses?.map(course => course.id) || [];
-      const { data: recipes, error: recipesError } = await supabase
-        .from('recipes')
-        .select('*')
-        .in('course_id', courseIds);
+      let recipes: any[] | null = null;
+      
+      if (courseIds.length > 0) {
+        const { data: fetchedRecipes, error: recipesError } = await withRetry(
+          async () => supabase
+            .from('recipes')
+            .select('*')
+            .in('course_id', courseIds),
+          3,
+          'Retrying recipes fetch operation'
+        );
 
-      if (recipesError) throw recipesError;
-      console.log('Loaded recipes:', recipes);
+        if (recipesError) throw recipesError;
+        recipes = fetchedRecipes;
+        console.log('Loaded recipes:', recipes);
+      } else {
+        console.log('No courses found, skipping recipe fetch');
+        recipes = [];
+      }
+
+      const { data: documents, error: documentsError } = await withRetry(
+        async () => supabase
+          .from('menu_documents')
+          .select('*')
+          .eq('menu_id', menuId),
+        3,
+        'Retrying documents fetch operation'
+      );
+
+      if (documentsError) throw documentsError;
 
       const recipeMap = recipes?.reduce((acc, recipe) => {
         acc[recipe.course_id] = recipe;
         return acc;
       }, {} as Record<string, any>);
-
-      const { data: documents, error: documentsError } = await supabase
-        .from('menu_documents')
-        .select('*')
-        .eq('menu_id', menuId);
-
-      if (documentsError) throw documentsError;
 
       const menuDocuments = documents?.reduce((acc, doc) => {
         acc[doc.document_type] = doc.content;
@@ -261,9 +360,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           courseCount: 3
         }
       });
+      console.log('Menu load completed successfully');
     } catch (error) {
       console.error('Error loading menu:', error);
-      toast.error('Failed to load menu');
+      toast.error('Failed to load menu. Please try again.');
     } finally {
       set({ isLoadingMenu: false });
     }
@@ -283,16 +383,20 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           return;
         }
 
-        const { data: menu, error } = await supabase
-          .from('menus')
-          .insert({
-            name: name.trim() || 'Untitled',
-            guest_count: get().guestCount,
-            prep_days: get().prepDays,
-            user_id: userId
-          })
-          .select()
-          .single();
+        const { data: menu, error } = await withRetry(
+          async () => supabase
+            .from('menus')
+            .insert({
+              name: name.trim() || 'Untitled',
+              guest_count: get().guestCount,
+              prep_days: get().prepDays,
+              user_id: userId
+            })
+            .select()
+            .single(),
+          3,
+          'Retrying menu creation'
+        );
 
         if (error) throw error;
         set({ 
@@ -304,10 +408,14 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           }
         });
       } else {
-        const { error } = await supabase
-          .from('menus')
-          .update({ name: name.trim() || 'Untitled' })
-          .eq('id', menuId);
+        const { error } = await withRetry(
+          async () => supabase
+            .from('menus')
+            .update({ name: name.trim() || 'Untitled' })
+            .eq('id', menuId),
+          3,
+          'Retrying menu name update'
+        );
 
         if (error) throw error;
       }
