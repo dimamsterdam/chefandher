@@ -1,10 +1,97 @@
-
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MenuState, Course, DocumentType } from '@/types/menu.types';
-import { generateRecipeForCourse, withRetry } from '@/utils/menuUtils';
-import { fetchUserMenus, saveMenu, saveCourses, deleteMenu as deleteMenuService } from '@/services/menuService';
+import type { Database } from '@/types/database.types';
+
+type MenuDocument = Database['public']['Tables']['menu_documents']['Row'];
+type DocumentType = Database['public']['Enums']['document_type'];
+
+interface Menu {
+  id: string;
+  name: string;
+  created_at: string;
+  guest_count: number;
+  prep_days: number;
+  course_count: number;
+}
+
+interface Recipe {
+  id?: string;
+  course_id: string;
+  created_by?: string;
+  title: string;
+  ingredients: string[];
+  instructions: string[];
+  prep_time_minutes: number;
+  cook_time_minutes: number;
+  servings: number;
+}
+
+interface Course {
+  id: string;
+  title: string;
+  order: number;
+  description?: string | null;
+  recipe?: Recipe;
+  dbId?: string;
+}
+
+interface MenuState {
+  name: string;
+  courses: Course[];
+  guestCount: number;
+  prepDays: number;
+  courseCount: number;
+  menuId: string | null;
+  menuPlanningComplete: boolean;
+  menuGenerated: boolean;
+  originalMenuName: string;
+  generatingRecipeForCourse: string | null;
+  isGeneratingDocuments: boolean;
+  menuDocuments: {
+    mise_en_place: string | null;
+    service_instructions: string | null;
+    shopping_list: string | null;
+    recipes: string | null;
+  };
+  hasUnsavedChanges: boolean;
+  originalConfig: {
+    guestCount: number;
+    prepDays: number;
+    courseCount: number;
+  } | null;
+  showRegenerationConfirmation: boolean;
+  pendingMenuGeneration: {
+    prompt: string;
+    guestCount: number;
+    courseCount: number;
+    withRecipes: boolean;
+  } | null;
+  menus: Menu[];
+  isLoadingMenus: boolean;
+  isLoadingMenu: boolean;
+  fetchMenus: () => Promise<void>;
+  loadMenu: (menuId: string) => Promise<void>;
+  setName: (name: string) => void;
+  setGuestCount: (count: number) => void;
+  setPrepDays: (days: number) => void;
+  setCourseCount: (count: number) => void;
+  addCourse: (course: Omit<Course, 'id'>) => void;
+  removeCourse: (id: string) => void;
+  updateCourse: (id: string, updates: Partial<Course>) => void;
+  reorderCourses: (courses: Course[]) => void;
+  generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
+  generateMenu: (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean) => Promise<void>;
+  _generateMenu: (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean) => Promise<void>;
+  saveMenu: () => Promise<void>;
+  setMenuPlanningComplete: (complete: boolean) => void;
+  reset: () => void;
+  generateMenuDocuments: () => Promise<void>;
+  confirmMenuRegeneration: () => Promise<void>;
+  cancelMenuRegeneration: () => void;
+  deleteMenu: (menuId: string) => Promise<void>;
+  createNewMenu: () => Promise<string | null>;
+}
 
 export const useMenuStore = create<MenuState>((set, get) => ({
   name: '',
@@ -31,31 +118,29 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   menus: [],
   isLoadingMenus: false,
   isLoadingMenu: false,
-
   fetchMenus: async () => {
     set({ isLoadingMenus: true });
     try {
-      const menus = await fetchUserMenus();
-      set({ menus, isLoadingMenus: false });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        set({ menus: [], isLoadingMenus: false });
+        return;
+      }
+
+      const { data: menus, error } = await supabase
+        .from('menus')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      set({ menus: menus || [], isLoadingMenus: false });
     } catch (error) {
       console.error('Error fetching menus:', error);
-      toast.error('Failed to fetch menus. Please try again.');
+      toast.error('Failed to fetch menus');
       set({ isLoadingMenus: false });
     }
   },
-
-  retryFetchMenus: async () => {
-    toast.info('Retrying menu fetch...');
-    
-    try {
-      await get().fetchMenus();
-      toast.success('Menus refreshed successfully');
-    } catch (error) {
-      console.error('Failed to retry fetching menus:', error);
-      toast.error('Menu refresh failed. Please check your connection.');
-    }
-  },
-
   loadMenu: async (menuId: string) => {
     set({
       isLoadingMenu: true,
@@ -85,89 +170,49 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     try {
       console.log('Loading menu with ID:', menuId);
       
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('Session error in loadMenu:', sessionError);
-        throw new Error('Authentication error: ' + sessionError.message);
-      }
-      
-      if (!session) {
-        console.error('No active session found in loadMenu');
-        throw new Error('No authenticated session available');
-      }
-      
-      const { data: menu, error: menuError } = await withRetry(
-        async () => supabase
-          .from('menus')
-          .select('*')
-          .eq('id', menuId)
-          .single(),
-        3,
-        'Retrying menu load operation'
-      );
+      const { data: menu, error: menuError } = await supabase
+        .from('menus')
+        .select('*')
+        .eq('id', menuId)
+        .single();
 
       if (menuError) throw menuError;
       console.log('Loaded menu:', menu);
 
-      const { data: courses, error: coursesError } = await withRetry(
-        async () => supabase
-          .from('courses')
-          .select('*')
-          .eq('menu_id', menuId)
-          .order('order', { ascending: true }),
-        3,
-        'Retrying courses fetch operation'
-      );
+      const { data: courses, error: coursesError } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('menu_id', menuId)
+        .order('order', { ascending: true });
 
       if (coursesError) throw coursesError;
       console.log('Loaded courses:', courses);
 
       const courseIds = courses?.map(course => course.id) || [];
-      let recipes: any[] | null = null;
-      
-      if (courseIds.length > 0) {
-        const { data: fetchedRecipes, error: recipesError } = await withRetry(
-          async () => supabase
-            .from('recipes')
-            .select('*')
-            .in('course_id', courseIds),
-          3,
-          'Retrying recipes fetch operation'
-        );
+      const { data: recipes, error: recipesError } = await supabase
+        .from('recipes')
+        .select('*')
+        .in('course_id', courseIds);
 
-        if (recipesError) throw recipesError;
-        recipes = fetchedRecipes;
-        console.log('Loaded recipes:', recipes);
-      } else {
-        console.log('No courses found, skipping recipe fetch');
-        recipes = [];
-      }
-
-      const { data: documents, error: documentsError } = await withRetry(
-        async () => supabase
-          .from('menu_documents')
-          .select('*')
-          .eq('menu_id', menuId),
-        3,
-        'Retrying documents fetch operation'
-      );
-
-      if (documentsError) throw documentsError;
+      if (recipesError) throw recipesError;
+      console.log('Loaded recipes:', recipes);
 
       const recipeMap = recipes?.reduce((acc, recipe) => {
         acc[recipe.course_id] = recipe;
         return acc;
       }, {} as Record<string, any>);
 
-      const menuDocumentsMap = documents?.reduce((acc, doc) => {
-        acc[doc.document_type as keyof typeof acc] = doc.content;
+      const { data: documents, error: documentsError } = await supabase
+        .from('menu_documents')
+        .select('*')
+        .eq('menu_id', menuId);
+
+      if (documentsError) throw documentsError;
+
+      const menuDocuments = documents?.reduce((acc, doc) => {
+        acc[doc.document_type] = doc.content;
         return acc;
-      }, {
-        mise_en_place: null,
-        service_instructions: null,
-        shopping_list: null,
-        recipes: null
-      } as Record<DocumentType, string | null>);
+      }, {} as { [K in DocumentType]: string | null });
 
       const formattedCourses = courses?.map(course => {
         console.log('Processing course:', course);
@@ -201,7 +246,12 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         guestCount: menu.guest_count,
         prepDays: menu.prep_days,
         courses: formattedCourses,
-        menuDocuments: menuDocumentsMap,
+        menuDocuments: menuDocuments || {
+          mise_en_place: null,
+          service_instructions: null,
+          shopping_list: null,
+          recipes: null
+        },
         menuPlanningComplete: !!documents?.length,
         menuGenerated: true,
         originalMenuName: menu.name,
@@ -211,29 +261,40 @@ export const useMenuStore = create<MenuState>((set, get) => ({
           courseCount: 3
         }
       });
-      console.log('Menu load completed successfully');
     } catch (error) {
       console.error('Error loading menu:', error);
-      toast.error('Failed to load menu. Please try again.');
+      toast.error('Failed to load menu');
     } finally {
       set({ isLoadingMenu: false });
     }
   },
-
   setName: async (name) => {
     set({ name, hasUnsavedChanges: true });
     
+    const { menuId } = get();
+    
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      
-      if (!userId) {
-        toast.error("You must be logged in to save a menu");
-        return;
-      }
+      if (!menuId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        
+        if (!userId) {
+          toast.error("You must be logged in to save a menu");
+          return;
+        }
 
-      const menu = await saveMenu(name, get().guestCount, get().prepDays, userId, get().menuId);
-      if (menu) {
+        const { data: menu, error } = await supabase
+          .from('menus')
+          .insert({
+            name: name.trim() || 'Untitled',
+            guest_count: get().guestCount,
+            prep_days: get().prepDays,
+            user_id: userId
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
         set({ 
           menuId: menu.id,
           originalConfig: {
@@ -242,13 +303,19 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             courseCount: get().courseCount
           }
         });
+      } else {
+        const { error } = await supabase
+          .from('menus')
+          .update({ name: name.trim() || 'Untitled' })
+          .eq('id', menuId);
+
+        if (error) throw error;
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to save menu name:', error);
       toast.error('Failed to save menu name');
     }
   },
-
   setGuestCount: (count) => {
     const state = get();
     if (state.menuGenerated && state.originalConfig && count !== state.originalConfig.guestCount) {
@@ -256,7 +323,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     set({ guestCount: count, hasUnsavedChanges: true });
   },
-
   setPrepDays: (days) => {
     const state = get();
     if (state.menuGenerated && state.originalConfig && days !== state.originalConfig.prepDays) {
@@ -264,7 +330,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     set({ prepDays: days, hasUnsavedChanges: true });
   },
-
   setCourseCount: (count) => {
     const state = get();
     if (state.menuGenerated && state.originalConfig && count !== state.originalConfig.courseCount) {
@@ -272,19 +337,16 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     set({ courseCount: count, hasUnsavedChanges: true });
   },
-
   addCourse: (course) =>
     set((state) => ({
       courses: [...state.courses, { ...course, id: crypto.randomUUID() }],
       hasUnsavedChanges: true
     })),
-  
   removeCourse: (id) =>
     set((state) => ({
       courses: state.courses.filter((course) => course.id !== id),
       hasUnsavedChanges: true
     })),
-  
   updateCourse: (id, updates) =>
     set((state) => ({
       courses: state.courses.map((course) =>
@@ -292,9 +354,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       ),
       hasUnsavedChanges: true
     })),
-  
   reorderCourses: (courses) => set({ courses, hasUnsavedChanges: true }),
-  
   setMenuPlanningComplete: async (complete) => {
     const state = get();
     
@@ -319,23 +379,113 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       set({ menuPlanningComplete: complete });
     }
   },
-
   generateRecipe: async (courseId: string, requirements?: string) => {
     const { courses, guestCount, menuId } = get();
+    const course = courses.find((c) => c.id === courseId);
+    
+    if (!course) {
+      toast.error('Course not found');
+      return;
+    }
+
     set({ generatingRecipeForCourse: courseId });
 
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      toast.error("You must be logged in to generate recipes");
+      set({ generatingRecipeForCourse: null });
+      return;
+    }
+
     try {
-      const result = await generateRecipeForCourse(courseId, requirements, guestCount, menuId, courses);
-      
-      if (result) {
-        set((state) => ({
-          courses: state.courses.map((c) =>
-            c.id === courseId ? { ...c, recipe: result.savedRecipe, description: result.description } : c
-          ),
-          hasUnsavedChanges: true
-        }));
-        toast.success('Recipe generated successfully!');
+      if (!menuId) {
+        await get().saveMenu();
       }
+
+      const currentState = get();
+      const updatedCourse = currentState.courses.find((c) => c.id === courseId);
+      
+      if (!currentState.menuId) {
+        toast.error('Failed to save menu. Please try again.');
+        return;
+      }
+
+      if (!updatedCourse?.dbId) {
+        await get().saveMenu();
+        const retryState = get();
+        const retryCourse = retryState.courses.find((c) => c.id === courseId);
+        
+        if (!retryCourse?.dbId) {
+          toast.error('Failed to save course. Please try again.');
+          return;
+        }
+      }
+
+      const finalCourse = get().courses.find((c) => c.id === courseId);
+      if (!finalCourse?.dbId) {
+        toast.error('Failed to save course. Please try again.');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('generate-recipe', {
+        body: {
+          courseTitle: finalCourse.title,
+          guestCount,
+          requirements,
+        },
+      });
+
+      if (response.error) {
+        console.error('Recipe generation error:', response.error);
+        throw new Error(response.error.message || 'Failed to generate recipe');
+      }
+
+      if (!response.data) {
+        throw new Error('No recipe data received');
+      }
+
+      const recipe: Recipe = {
+        course_id: finalCourse.dbId,
+        created_by: userId,
+        title: response.data.title,
+        ingredients: response.data.ingredients,
+        instructions: response.data.instructions,
+        prep_time_minutes: response.data.prep_time_minutes,
+        cook_time_minutes: response.data.cook_time_minutes,
+        servings: response.data.servings
+      };
+
+      const { error: updateCourseError } = await supabase
+        .from('courses')
+        .update({ description: response.data.description })
+        .eq('id', finalCourse.dbId);
+
+      if (updateCourseError) {
+        console.error('Course update error:', updateCourseError);
+        throw new Error('Failed to update course description');
+      }
+
+      const { data: savedRecipe, error: saveError } = await supabase
+        .from('recipes')
+        .insert(recipe)
+        .select()
+        .single();
+
+      if (saveError) {
+        console.error('Recipe save error:', saveError);
+        throw new Error('Failed to save recipe');
+      }
+
+      set((state) => ({
+        courses: state.courses.map((c) =>
+          c.id === courseId ? { ...c, recipe: savedRecipe, description: response.data.description } : c
+        ),
+        hasUnsavedChanges: true
+      }));
+
+      toast.success('Recipe generated successfully!');
     } catch (error: any) {
       console.error('Recipe generation error:', error);
       toast.error(error.message || 'Failed to generate recipe');
@@ -344,7 +494,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       set({ generatingRecipeForCourse: null });
     }
   },
-
   generateMenu: async (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean = false) => {
     const { courses } = get();
     
@@ -363,7 +512,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       throw error;
     }
   },
-
   _generateMenu: async (prompt: string, guestCount: number, courseCount: number, withRecipes: boolean = false) => {
     const { menuId, saveMenu, addCourse, name } = get();
     
@@ -441,7 +589,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     toast.success("Menu generated successfully!");
     return Promise.resolve();
   },
-
   saveMenu: async () => {
     const { name, guestCount, prepDays, courses, menuId } = get();
     
@@ -454,13 +601,57 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
     
     try {
-      const menu = await saveMenu(name, guestCount, prepDays, userId, menuId);
-      if (menu) {
-        set({ menuId: menu.id });
+      let currentMenuId = menuId;
+      const menuName = name.trim() || 'Untitled';
+      
+      if (!currentMenuId) {
+        const { data: menu, error: menuError } = await supabase
+          .from('menus')
+          .insert({
+            name: menuName,
+            guest_count: guestCount,
+            prep_days: prepDays,
+            user_id: userId
+          })
+          .select()
+          .single();
+
+        if (menuError) throw menuError;
+        currentMenuId = menu.id;
+        set({ menuId: currentMenuId });
+      } else {
+        const { error: updateError } = await supabase
+          .from('menus')
+          .update({
+            name: menuName,
+            guest_count: guestCount,
+            prep_days: prepDays
+          })
+          .eq('id', currentMenuId);
+
+        if (updateError) throw updateError;
       }
 
-      const savedCourses = await saveCourses(courses, menuId || menu!.id);
-      
+      const { error: deleteError } = await supabase
+        .from('courses')
+        .delete()
+        .eq('menu_id', currentMenuId);
+
+      if (deleteError) throw deleteError;
+
+      const { data: savedCourses, error: coursesError } = await supabase
+        .from('courses')
+        .insert(
+          courses.map((course) => ({
+            menu_id: currentMenuId,
+            title: course.title,
+            order: course.order,
+          }))
+        )
+        .select();
+
+      if (coursesError) throw coursesError;
+
       if (savedCourses) {
         set((state) => ({
           courses: state.courses.map((course, index) => ({
@@ -475,7 +666,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       throw error;
     }
   },
-
   reset: () => set({
     name: '',
     courses: [],
@@ -499,7 +689,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     showRegenerationConfirmation: false,
     pendingMenuGeneration: null,
   }),
-
   generateMenuDocuments: async () => {
     const { menuId, courses, guestCount, prepDays } = get();
     
@@ -546,10 +735,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
         service_instructions: null,
         shopping_list: null,
         recipes: null
-      } as Record<DocumentType, string | null>;
+      } as { [K in DocumentType]: string | null };
 
       documents?.forEach(doc => {
-        updatedDocuments[doc.document_type as keyof typeof updatedDocuments] = doc.content;
+        updatedDocuments[doc.document_type] = doc.content;
       });
 
       set({ menuDocuments: updatedDocuments });
@@ -560,7 +749,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       set({ isGeneratingDocuments: false });
     }
   },
-
   confirmMenuRegeneration: async () => {
     const { pendingMenuGeneration } = get();
     if (!pendingMenuGeneration) return;
@@ -569,17 +757,36 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     set({ showRegenerationConfirmation: false, pendingMenuGeneration: null });
     await get()._generateMenu(prompt, guestCount, courseCount, withRecipes);
   },
-
   cancelMenuRegeneration: () => {
     set({ showRegenerationConfirmation: false, pendingMenuGeneration: null });
   },
-
   deleteMenu: async (menuId: string) => {
     try {
-      await deleteMenuService(menuId);
+      const { error: coursesError } = await supabase
+        .from('courses')
+        .delete()
+        .eq('menu_id', menuId);
+
+      if (coursesError) throw coursesError;
+
+      const { error: documentsError } = await supabase
+        .from('menu_documents')
+        .delete()
+        .eq('menu_id', menuId);
+
+      if (documentsError) throw documentsError;
+
+      const { error: menuError } = await supabase
+        .from('menus')
+        .delete()
+        .eq('id', menuId);
+
+      if (menuError) throw menuError;
+
       set((state) => ({
         menus: state.menus.filter((menu) => menu.id !== menuId),
       }));
+
       toast.success('Menu deleted successfully');
     } catch (error) {
       console.error('Error deleting menu:', error);
@@ -587,7 +794,6 @@ export const useMenuStore = create<MenuState>((set, get) => ({
       throw error;
     }
   },
-
   createNewMenu: async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
