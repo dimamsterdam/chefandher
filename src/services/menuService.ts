@@ -3,6 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { withRetry } from '@/utils/menuUtils';
 import { Course, Menu } from '@/types/menu.types';
 import { toast } from 'sonner';
+import { Database } from '@/types/database.types';
+
+type Tables = Database['public']['Tables'];
+type MenuInsert = Tables['menus']['Insert'];
+type CourseInsert = Tables['courses']['Insert'];
 
 export async function fetchUserMenus() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -26,15 +31,17 @@ export async function fetchUserMenus() {
 
 export async function saveMenu(name: string, guestCount: number, prepDays: number, userId: string, menuId: string | null) {
   if (!menuId) {
+    const menuData: MenuInsert = {
+      name: name.trim() || 'Untitled',
+      guest_count: guestCount,
+      prep_days: prepDays,
+      user_id: userId
+    };
+
     const { data: menu, error } = await withRetry(
       async () => supabase
         .from('menus')
-        .insert({
-          name: name.trim() || 'Untitled',
-          guest_count: guestCount,
-          prep_days: prepDays,
-          user_id: userId
-        })
+        .insert(menuData)
         .select()
         .single()
     );
@@ -42,14 +49,16 @@ export async function saveMenu(name: string, guestCount: number, prepDays: numbe
     if (error) throw error;
     return menu;
   } else {
+    const updateData = {
+      name: name.trim() || 'Untitled',
+      guest_count: guestCount,
+      prep_days: prepDays
+    };
+
     const { error } = await withRetry(
       async () => supabase
         .from('menus')
-        .update({
-          name: name.trim() || 'Untitled',
-          guest_count: guestCount,
-          prep_days: prepDays
-        })
+        .update(updateData)
         .eq('id', menuId)
     );
 
@@ -66,16 +75,16 @@ export async function saveCourses(courses: Course[], menuId: string) {
 
   if (deleteError) throw deleteError;
 
+  const coursesData: CourseInsert[] = courses.map((course) => ({
+    menu_id: menuId,
+    title: course.title,
+    order: course.order,
+    description: course.description
+  }));
+
   const { data: savedCourses, error: coursesError } = await supabase
     .from('courses')
-    .insert(
-      courses.map((course) => ({
-        menu_id: menuId,
-        title: course.title,
-        order: course.order,
-        description: course.description
-      }))
-    )
+    .insert(coursesData)
     .select();
 
   if (coursesError) throw coursesError;

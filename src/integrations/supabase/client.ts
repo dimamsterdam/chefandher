@@ -67,53 +67,51 @@ const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
   },
-  db: {
-    schema: 'public',
-  },
   global: {
     headers: {
       'x-application-name': 'chefandher',
     },
   },
-  // Add better fetch options
-  fetch: (url, options = {}) => {
-    const fetchOptions = {
-      ...options,
-      // Add timeout to prevent hanging requests
-      signal: options.signal || (typeof AbortController !== 'undefined' ? new AbortController().signal : undefined),
-    };
-    
-    // Use a custom fetch with timeout
-    return new Promise((resolve, reject) => {
-      // Set a timeout to abort long-running requests
-      const timeoutId = setTimeout(() => {
-        if (fetchOptions.signal instanceof AbortSignal && !(fetchOptions.signal as any).aborted) {
-          (fetchOptions.signal as any).onabort?.();
-          reject(new Error('Request timeout'));
-        }
-      }, 10000); // 10 second timeout
-      
-      fetch(url, fetchOptions)
-        .then(response => {
-          clearTimeout(timeoutId);
-          // Update connection health tracking on successful responses
-          if (response.ok) {
-            lastSuccessfulOperation = Date.now();
-            connectionHealthy = true;
-          }
-          resolve(response);
-        })
-        .catch(error => {
-          clearTimeout(timeoutId);
-          // Track connection health issues
-          if (error.name === 'TypeError' || error.message.includes('network')) {
-            connectionHealthy = false;
-          }
-          reject(error);
-        });
-    });
-  }
 });
+
+// Set up custom fetch handling with timeout
+const originalFetch = supabaseClient.rest.headers;
+supabaseClient.rest.headers = async (url, options = {}) => {
+  const customOptions = { ...options };
+  
+  try {
+    // Set a timeout to abort long-running requests
+    const controller = new AbortController();
+    if (!customOptions.signal) {
+      customOptions.signal = controller.signal;
+    }
+    
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn('Request timeout for URL:', url);
+    }, 10000);
+    
+    const response = await originalFetch(url, customOptions);
+    
+    clearTimeout(timeoutId);
+    
+    // Update connection health tracking on successful responses
+    if (response.ok) {
+      lastSuccessfulOperation = Date.now();
+      connectionHealthy = true;
+    }
+    
+    return response;
+  } catch (error) {
+    // Track connection health issues
+    if (error instanceof Error) {
+      if (error.name === 'TypeError' || error.message.includes('network')) {
+        connectionHealthy = false;
+      }
+    }
+    throw error;
+  }
+};
 
 // Check initial session state and set up token refresh monitoring
 supabaseClient.auth.getSession().then(({ data: { session }, error }) => {

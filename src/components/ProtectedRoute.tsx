@@ -1,13 +1,13 @@
-
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/types/database.types';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
+type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 
 interface SessionResponse {
   data: { session: Session | null };
@@ -84,17 +84,15 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         
         // Create new profile
         try {
+          const profileData: ProfileInsert = {
+            id: userId,
+            full_name: 'User',
+            avatar_url: null
+          };
+          
           const createResult = await supabase
             .from('profiles')
-            .insert([
-              {
-                id: userId,
-                full_name: 'User',
-                avatar_url: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }
-            ])
+            .insert(profileData)
             .select()
             .single();
           

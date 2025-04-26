@@ -68,4 +68,28 @@ export interface MenuState {
   menus: Menu[];
   isLoadingMenus: boolean;
   isLoadingMenu: boolean;
+
+  // Adding the missing methods
+  fetchMenus: () => Promise<void>;
+  retryFetchMenus: () => Promise<void>;
+  loadMenu: (menuId: string) => Promise<void>;
+  setName: (name: string) => Promise<void>;
+  setGuestCount: (count: number) => void;
+  setPrepDays: (days: number) => void;
+  setCourseCount: (count: number) => void;
+  addCourse: (course: Omit<Course, 'id'>) => void;
+  removeCourse: (id: string) => void;
+  updateCourse: (id: string, updates: Partial<Course>) => void;
+  reorderCourses: (courses: Course[]) => void;
+  setMenuPlanningComplete: (complete: boolean) => Promise<void>;
+  generateRecipe: (courseId: string, requirements?: string) => Promise<void>;
+  generateMenu: (prompt: string, guestCount: number, courseCount: number, withRecipes?: boolean) => Promise<void>;
+  _generateMenu: (prompt: string, guestCount: number, courseCount: number, withRecipes?: boolean) => Promise<void>;
+  saveMenu: () => Promise<void>;
+  reset: () => void;
+  generateMenuDocuments: () => Promise<void>;
+  confirmMenuRegeneration: () => Promise<void>;
+  cancelMenuRegeneration: () => void;
+  deleteMenu: (menuId: string) => Promise<void>;
+  createNewMenu: () => Promise<string | null>;
 }
