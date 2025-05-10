@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { Pencil, Check, AlertTriangle, Loader2, Plus } from "lucide-react";
@@ -359,6 +360,7 @@ const MenuPage = () => {
             desiredCourseCount={desiredCourseCount}
             prepDays={prepDays}
             menuPlanningComplete={menuPlanningComplete}
+            courseCount={courses.length}
             onNameChange={setName}
             onGuestCountChange={setGuestCount}
             onDesiredCourseCountChange={setDesiredCourseCount}
@@ -389,7 +391,7 @@ const MenuPage = () => {
           )}
 
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold">Courses</h2>
+            <h2 className="text-xl font-semibold">Courses ({courses.length})</h2>
             
             <Reorder.Group 
               axis="y" 

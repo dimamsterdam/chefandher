@@ -9,6 +9,7 @@ interface MenuConfigurationProps {
   desiredCourseCount: number;
   prepDays: number;
   menuPlanningComplete: boolean;
+  courseCount: number;
   onNameChange: (value: string) => void;
   onGuestCountChange: (value: number) => void;
   onDesiredCourseCountChange: (value: number) => void;
@@ -21,13 +22,14 @@ export const MenuConfiguration = ({
   desiredCourseCount,
   prepDays,
   menuPlanningComplete,
+  courseCount,
   onNameChange,
   onGuestCountChange,
   onDesiredCourseCountChange,
   onPrepDaysChange,
 }: MenuConfigurationProps) => {
   return (
-    <div className="space-y-6 mb-8">
+    <div className="space-y-6 mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50 shadow-sm">
       <div>
         <label className="block text-sm font-medium mb-2">Menu Name</label>
         <div className="flex items-center space-x-2 max-w-md">
