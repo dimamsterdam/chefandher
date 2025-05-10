@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Pencil, Check, AlertTriangle, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, Loader2, Plus } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -334,24 +333,6 @@ const MenuPage = () => {
         >
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">Menu Planning</h1>
-            <Button 
-              onClick={handleToggleEditMode}
-              variant={menuPlanningComplete ? "outline" : "default"}
-              className={menuPlanningComplete ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : ""}
-              disabled={courses.length === 0 || !name.trim() || generatingMenu}
-            >
-              {menuPlanningComplete ? (
-                <>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit Menu
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Mark as Complete
-                </>
-              )}
-            </Button>
           </div>
           
           <MenuConfiguration
@@ -365,6 +346,7 @@ const MenuPage = () => {
             onGuestCountChange={setGuestCount}
             onDesiredCourseCountChange={setDesiredCourseCount}
             onPrepDaysChange={setPrepDays}
+            onToggleEditMode={handleToggleEditMode}
           />
 
           {hasConfigChanged && (

@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, Pencil, Check } from "lucide-react";
 
 interface MenuConfigurationProps {
   name: string;
@@ -14,6 +14,7 @@ interface MenuConfigurationProps {
   onGuestCountChange: (value: number) => void;
   onDesiredCourseCountChange: (value: number) => void;
   onPrepDaysChange: (value: number) => void;
+  onToggleEditMode: () => void;
 }
 
 export const MenuConfiguration = ({
@@ -27,9 +28,32 @@ export const MenuConfiguration = ({
   onGuestCountChange,
   onDesiredCourseCountChange,
   onPrepDaysChange,
+  onToggleEditMode,
 }: MenuConfigurationProps) => {
   return (
     <div className="space-y-6 mb-8 p-6 border border-gray-200 rounded-lg bg-gray-50 shadow-sm">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-semibold">Menu Configuration</h2>
+        <Button 
+          onClick={onToggleEditMode}
+          variant={menuPlanningComplete ? "outline" : "default"}
+          className={menuPlanningComplete ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : ""}
+          disabled={courseCount === 0 || !name.trim()}
+        >
+          {menuPlanningComplete ? (
+            <>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit Menu
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4 mr-2" />
+              Mark as Complete
+            </>
+          )}
+        </Button>
+      </div>
+      
       <div>
         <label className="block text-sm font-medium mb-2">Menu Name</label>
         <div className="flex items-center space-x-2 max-w-md">
