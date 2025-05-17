@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { AlertTriangle, Loader2, Plus } from "lucide-react";
 import { useMenuStore } from "@/store/menuStore";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -24,6 +25,8 @@ import {
 const MenuPage = () => {
   const { id } = useParams();
   console.log('MenuPage mounted with id:', id);
+  
+  const { authChecked } = useAuthStore();
   
   const { 
     name, 
@@ -83,8 +86,10 @@ const MenuPage = () => {
     );
 
   useEffect(() => {
-    console.log('useEffect triggered with id:', id);
-    if (id) { 
+    console.log('useEffect triggered with id:', id, 'authChecked:', authChecked);
+    
+    // Only load the menu if we have an ID and authentication is completed
+    if (id && authChecked) { 
       console.log('Loading menu with id:', id);
       loadMenu(id).then(() => {
         console.log('Menu loaded successfully');
@@ -93,7 +98,7 @@ const MenuPage = () => {
         toast.error('Failed to load menu');
       });
     }
-  }, [id, loadMenu]);
+  }, [id, authChecked, loadMenu]);
 
   if (isLoadingMenu) {
     return (

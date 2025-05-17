@@ -142,82 +142,132 @@ export const useMenuStore = create<MenuState>((set, get) => ({
     }
   },
   loadMenu: async (menuId: string) => {
-    set({
-      isLoadingMenu: true,
-      name: '',
-      guestCount: 1,
-      prepDays: 1,
-      courseCount: 3,
-      courses: [],
-      menuId: null,
-      menuPlanningComplete: false,
-      menuGenerated: false,
-      originalMenuName: '',
-      generatingRecipeForCourse: null,
-      isGeneratingDocuments: false,
-      menuDocuments: {
-        mise_en_place: null,
-        service_instructions: null,
-        shopping_list: null,
-        recipes: null
-      },
-      hasUnsavedChanges: false,
-      originalConfig: null,
-      showRegenerationConfirmation: false,
-      pendingMenuGeneration: null
-    });
-
     try {
+      // Check for active session first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No active session found when loading menu, returning early');
+        return;
+      }
+      
+      set({
+        isLoadingMenu: true,
+        name: '',
+        guestCount: 1,
+        prepDays: 1,
+        courseCount: 3,
+        courses: [],
+        menuId: null,
+        menuPlanningComplete: false,
+        menuGenerated: false,
+        originalMenuName: '',
+        generatingRecipeForCourse: null,
+        isGeneratingDocuments: false,
+        menuDocuments: {
+          mise_en_place: null,
+          service_instructions: null,
+          shopping_list: null,
+          recipes: null
+        },
+        hasUnsavedChanges: false,
+        originalConfig: null,
+        showRegenerationConfirmation: false,
+        pendingMenuGeneration: null
+      });
+
       console.log('Loading menu with ID:', menuId);
       
+      // First get the menu data
       const { data: menu, error: menuError } = await supabase
         .from('menus')
         .select('*')
         .eq('id', menuId)
         .single();
 
-      if (menuError) throw menuError;
+      if (menuError) {
+        console.error('Error loading menu:', menuError);
+        toast.error('Failed to load menu');
+        set({ isLoadingMenu: false });
+        return;
+      }
+      
       console.log('Loaded menu:', menu);
 
+      // Then get course data
       const { data: courses, error: coursesError } = await supabase
         .from('courses')
         .select('*')
         .eq('menu_id', menuId)
         .order('order', { ascending: true });
 
-      if (coursesError) throw coursesError;
+      if (coursesError) {
+        console.error('Error loading courses:', coursesError);
+        toast.error('Failed to load courses');
+        set({ isLoadingMenu: false });
+        return;
+      }
+      
       console.log('Loaded courses:', courses);
 
-      const courseIds = courses?.map(course => course.id) || [];
+      // Get recipes only if we have courses
+      if (!courses || courses.length === 0) {
+        console.log('No courses found for menu');
+        set({
+          menuId: menu.id,
+          name: menu.name,
+          guestCount: menu.guest_count,
+          prepDays: menu.prep_days,
+          courses: [],
+          menuPlanningComplete: false,
+          menuGenerated: true,
+          originalMenuName: menu.name,
+          originalConfig: {
+            guestCount: menu.guest_count,
+            prepDays: menu.prep_days,
+            courseCount: 3
+          },
+          isLoadingMenu: false
+        });
+        return;
+      }
+      
+      const courseIds = courses.map(course => course.id);
       const { data: recipes, error: recipesError } = await supabase
         .from('recipes')
         .select('*')
         .in('course_id', courseIds);
 
-      if (recipesError) throw recipesError;
-      console.log('Loaded recipes:', recipes);
+      if (recipesError) {
+        console.error('Error loading recipes:', recipesError);
+        toast.error('Failed to load recipes');
+      }
+      
+      console.log('Loaded recipes:', recipes || []);
 
-      const recipeMap = recipes?.reduce((acc, recipe) => {
+      const recipeMap = (recipes || []).reduce((acc, recipe) => {
         acc[recipe.course_id] = recipe;
         return acc;
       }, {} as Record<string, any>);
 
+      // Get menu documents
       const { data: documents, error: documentsError } = await supabase
         .from('menu_documents')
         .select('*')
         .eq('menu_id', menuId);
 
-      if (documentsError) throw documentsError;
+      if (documentsError) {
+        console.error('Error loading menu documents:', documentsError);
+      }
 
-      const menuDocuments = documents?.reduce((acc, doc) => {
+      const menuDocuments = (documents || []).reduce((acc, doc) => {
         acc[doc.document_type] = doc.content;
         return acc;
       }, {} as { [K in DocumentType]: string | null });
 
-      const formattedCourses = courses?.map(course => {
+      const formattedCourses = courses.map(course => {
         console.log('Processing course:', course);
         const recipe = recipeMap?.[course.id];
-        console.log('Found recipe for course:', recipe);
+        console.log('Found recipe for course:', recipe || 'No recipe found');
         
         return {
           id: course.id,
@@ -236,7 +286,7 @@ export const useMenuStore = create<MenuState>((set, get) => ({
             servings: recipe.servings || 0,
           } : undefined
         };
-      }) || [];
+      });
 
       console.log('Formatted courses:', formattedCourses);
 

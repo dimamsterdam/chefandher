@@ -7,10 +7,12 @@ interface AuthState {
   profile: { full_name: string | null; avatar_url: string | null } | null;
   isLoading: boolean;
   error: string | null;
+  authChecked: boolean;
   setUser: (user: User | null) => void;
   setProfile: (profile: { full_name: string | null; avatar_url: string | null } | null) => void;
   setIsLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
+  setAuthChecked: (checked: boolean) => void;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -18,12 +20,14 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   profile: null,
-  isLoading: true,
+  isLoading: false,
   error: null,
+  authChecked: false,
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setIsLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
+  setAuthChecked: (authChecked) => set({ authChecked }),
   signOut: async () => {
     try {
       set({ isLoading: true, error: null });
@@ -38,7 +42,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   refreshSession: async () => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isLoading: true, error: null, authChecked: false });
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) throw error;
       if (session?.user) {
@@ -55,7 +59,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error: any) {
       set({ error: error.message });
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, authChecked: true });
     }
   },
 }));
